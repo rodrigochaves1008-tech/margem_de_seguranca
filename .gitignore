@@ -1,0 +1,7 @@
+# Segredos e ambiente local
+.env
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
