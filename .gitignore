@@ -5,3 +5,10 @@
 # Python
 __pycache__/
 *.py[cod]
+
+# Saídas geradas (telas, relatórios, histórico): ficam no PC, fora do Git
+saida/
+
+# Instalação local do pacote
+*.egg-info/
+.pytest_cache/

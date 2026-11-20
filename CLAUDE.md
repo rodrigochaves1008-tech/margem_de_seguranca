@@ -6,9 +6,29 @@ quando uma sessão é aberta nesta pasta.
 ## Estado do projeto
 Atualize esta seção ao fim de cada fase.
 
-- 20/11/2026: plano apresentado e aprovado (seção "Plano aprovado", no fim). Ainda não há código.
-- O item 1 de "Como entregar" (apresentar o plano e esperar o OK) já foi cumprido. Não
-  apresente o plano de novo: comece a Fase 1 (BBAS3).
+- 20/11/2026: plano apresentado e aprovado (seção "Plano aprovado", no fim).
+- 20/11/2026: Fase 1 implementada e testada na nuvem com BBAS3: fontes com cache, base mensal
+  point-in-time, walk-forward com escolha só por resultados fechados, ranking dos preditores
+  (SHAP + permutação), valuation tradicional, tela com os dois gráficos, relatório de 10 seções,
+  histórico JSONL, página do ranking dos ativos, atualização rápida, teste de vazamento (passou,
+  diferença 0,000000 em 3 meses sorteados), testes em `tests/`, instalador `instalar.ps1` e skill
+  em `skill/`.
+- Resultado da Fase 1: BBAS3 sem estimativa confiável. A escolha do walk-forward erra 124% do
+  erro do passeio aleatório no preço 12 meses depois e 146% em 6 meses (últimos 60 meses); a rede
+  neural varia 13% entre sementes. Erro típico 8,8%; preço dentro da faixa de 80% em 78% dos meses.
+- Decisões pendentes com o usuário: (1) manter o critério estrito ou mudar; (2) aceitar o
+  substituto do risco-país (NTN-B 10 anos − TIPS 10 anos; o EMBI+ acabou em 30/07/2024);
+  (3) seguir para a Fase 2 (painel com pares do setor, que deve ajudar a amostra pequena).
+- Não apresente o plano de novo. Não mude o desenho do modelo olhando o backtest do período
+  todo sem dizer isso ao usuário (seria escolher com o período todo).
+
+Notas técnicas aprendidas na Fase 1:
+- FRED bloqueia nome de navegador e nomes de cliente desconhecidos: usar o padrão do requests.
+  Yahoo e B3 exigem nome de navegador (ver `margem/rede.py`).
+- B3 (COTAHIST) às vezes recusa servidores na nuvem (Cloudflare); o código cai para o Yahoo.
+- CVM: o BB só tem ITR consolidado a partir de 2022 → usar as individuais; composição do capital
+  só a partir de 2020 → antes, o FRE; nos documentos de 2025 os comparativos vêm zerados.
+- pandas 3 e scikit-learn 1.9: `LassoCV(alphas=30)` (não `n_alphas`).
 - Código no repositório privado `rodrigochaves1008-tech/margem_de_seguranca` (GitHub). No PC,
   `Documentos\margem_de_seguranca` é um clone dele.
 - O código pode ser escrito numa sessão na nuvem ou no PC, sempre pelo repositório. Os testes

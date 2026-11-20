@@ -1,0 +1,354 @@
+# Catálogo das séries de macro, exterior e setor.
+#
+# defasagem: quando o dado de uma data de referência passa a ser conhecido.
+#   {dias: N}  séries diárias: o valor do dia d entra em d + N dias
+#   {meses: N} séries mensais: o valor do mês m entra no fim do mês m + N (conservador)
+# transformacao: nivel | var12m (variação em 12 meses) | acum12m (acumula variações mensais em %)
+# revisada: a fonte revisa valores passados e não guarda a versão da época (dito em Limitações)
+# explicacao: frase simples usada no relatório
+
+# ---------------- Macro Brasil ----------------
+selic:
+  nome: "Selic (meta do Copom)"
+  familia: macro_brasil
+  fonte: sgs
+  codigo: 432
+  defasagem: {dias: 0}
+  transformacao: nivel
+  unidade: "% a.a."
+  explicacao: "o juro básico da economia; juro mais alto encarece o crédito e reduz o valor, hoje, dos lucros futuros"
+cdi_mes:
+  nome: "CDI acumulado no mês"
+  familia: macro_brasil
+  fonte: sgs
+  codigo: 4391
+  defasagem: {meses: 0}
+  transformacao: nivel
+  unidade: "% a.m."
+  preditor: false
+juro_curto:
+  nome: "Juro prefixado de 1 ano"
+  familia: macro_brasil
+  fonte: tesouro
+  tipo: prefixado
+  prazo_anos: 1
+  defasagem: {dias: 0}
+  transformacao: nivel
+  unidade: "% a.a."
+  explicacao: "o juro que o mercado cobra para 1 ano; mostra para onde se espera que a Selic vá"
+juro_longo:
+  nome: "Juro prefixado de 5 anos"
+  familia: macro_brasil
+  fonte: tesouro
+  tipo: prefixado
+  prazo_anos: 5
+  defasagem: {dias: 0}
+  transformacao: nivel
+  unidade: "% a.a."
+  explicacao: "o juro longo; quando sobe, o mercado desconta os lucros futuros a uma taxa maior"
+inclinacao:
+  nome: "Inclinação da curva (5 anos − 1 ano)"
+  familia: macro_brasil
+  fonte: derivada
+  formula: "juro_longo - juro_curto"
+  transformacao: nivel
+  unidade: "p.p."
+  explicacao: "a diferença entre o juro longo e o curto; curva inclinada costuma indicar mais risco à frente"
+juro_real_longo:
+  nome: "Juro real de 10 anos (NTN-B)"
+  familia: macro_brasil
+  fonte: tesouro
+  tipo: ipca
+  prazo_anos: 10
+  defasagem: {dias: 0}
+  transformacao: nivel
+  unidade: "% a.a. + IPCA"
+  explicacao: "o juro acima da inflação pago pelo Tesouro; é a base do custo de capital das empresas"
+ipca_12m:
+  nome: "IPCA em 12 meses"
+  familia: macro_brasil
+  fonte: sgs
+  codigo: 13522
+  defasagem: {meses: 1}
+  transformacao: nivel
+  unidade: "%"
+  explicacao: "a inflação oficial; afeta juros, custos e o valor real dos lucros"
+igpm_12m:
+  nome: "IGP-M em 12 meses"
+  familia: macro_brasil
+  fonte: sgs
+  codigo: 189
+  defasagem: {meses: 1}
+  transformacao: acum12m
+  unidade: "%"
+  explicacao: "índice de preços que corrige muitos contratos (aluguéis, tarifas)"
+focus_ipca_12m:
+  nome: "Expectativa de IPCA em 12 meses (Focus)"
+  familia: macro_brasil
+  fonte: focus
+  conjunto: ExpectativasMercadoInflacao12Meses
+  indicador: IPCA
+  suavizada: "S"
+  defasagem: {dias: 7}
+  transformacao: nivel
+  unidade: "%"
+  explicacao: "a inflação que o mercado espera para os próximos 12 meses"
+focus_selic_prox_ano:
+  nome: "Expectativa de Selic no fim do próximo ano (Focus)"
+  familia: macro_brasil
+  fonte: focus
+  conjunto: ExpectativasMercadoAnuais
+  indicador: Selic
+  ano_relativo: 1
+  defasagem: {dias: 7}
+  transformacao: nivel
+  unidade: "% a.a."
+  explicacao: "onde o mercado espera a Selic no fim do ano que vem"
+focus_pib_prox_ano:
+  nome: "Expectativa de PIB do próximo ano (Focus)"
+  familia: macro_brasil
+  fonte: focus
+  conjunto: ExpectativasMercadoAnuais
+  indicador: "PIB Total"
+  ano_relativo: 1
+  defasagem: {dias: 7}
+  transformacao: nivel
+  unidade: "%"
+  explicacao: "o crescimento da economia que o mercado espera para o ano que vem"
+dolar_var12m:
+  nome: "Dólar (variação em 12 meses)"
+  familia: macro_brasil
+  fonte: sgs
+  codigo: 1
+  defasagem: {dias: 0}
+  transformacao: var12m
+  unidade: "%"
+  explicacao: "a alta ou queda do dólar; dólar subindo costuma refletir mais risco no Brasil"
+ibc_br_var12m:
+  nome: "IBC-Br (variação em 12 meses)"
+  familia: macro_brasil
+  fonte: sgs
+  codigo: 24363
+  defasagem: {meses: 2}
+  transformacao: var12m
+  unidade: "%"
+  revisada: true
+  explicacao: "o ritmo da atividade econômica medido pelo Banco Central"
+desemprego:
+  nome: "Taxa de desemprego (PNAD)"
+  familia: macro_brasil
+  fonte: sgs
+  codigo: 24369
+  defasagem: {meses: 2}
+  transformacao: nivel
+  unidade: "%"
+  revisada: true
+  explicacao: "a taxa de desemprego; desemprego alto aumenta calotes e reduz a demanda por crédito"
+ibovespa_var12m:
+  nome: "Ibovespa (variação em 12 meses)"
+  familia: macro_brasil
+  fonte: yahoo
+  codigo: "^BVSP"
+  defasagem: {dias: 0}
+  transformacao: var12m
+  unidade: "%"
+  explicacao: "o humor da bolsa brasileira como um todo"
+ibovespa:
+  nome: "Ibovespa"
+  familia: macro_brasil
+  fonte: yahoo
+  codigo: "^BVSP"
+  defasagem: {dias: 0}
+  transformacao: nivel
+  unidade: "pontos"
+  preditor: false
+premio_risco_brasil:
+  nome: "Prêmio de risco Brasil (NTN-B 10 anos − juro real dos EUA)"
+  familia: macro_brasil
+  fonte: derivada
+  formula: "juro_real_longo - tips10"
+  transformacao: nivel
+  unidade: "p.p."
+  explicacao: "quanto o Brasil paga de juro real acima dos EUA; substitui o CDS de 5 anos e o EMBI+, sem fonte gratuita atual"
+embi:
+  nome: "EMBI+ Brasil (JP Morgan)"
+  familia: macro_brasil
+  fonte: ipea
+  codigo: JPM366_EMBI366
+  defasagem: {dias: 1}
+  transformacao: nivel
+  unidade: "pontos-base"
+  preditor: false   # descontinuado em 30/07/2024; usado só para validar o substituto
+
+# ---------------- Exterior ----------------
+fed_funds:
+  nome: "Fed funds (juro básico dos EUA)"
+  familia: exterior
+  fonte: fred
+  codigo: DFF
+  defasagem: {dias: 1}
+  transformacao: nivel
+  unidade: "% a.a."
+  explicacao: "o juro básico dos EUA; juro alto lá atrai dinheiro para fora de países emergentes"
+ust2:
+  nome: "Treasury de 2 anos"
+  familia: exterior
+  fonte: fred
+  codigo: DGS2
+  defasagem: {dias: 1}
+  transformacao: nivel
+  unidade: "% a.a."
+  explicacao: "o juro de 2 anos do governo americano"
+ust10:
+  nome: "Treasury de 10 anos"
+  familia: exterior
+  fonte: fred
+  codigo: DGS10
+  defasagem: {dias: 1}
+  transformacao: nivel
+  unidade: "% a.a."
+  explicacao: "o juro longo dos EUA, referência para o custo de capital no mundo"
+tips10:
+  nome: "Juro real de 10 anos dos EUA (TIPS)"
+  familia: exterior
+  fonte: fred
+  codigo: DFII10
+  defasagem: {dias: 1}
+  transformacao: nivel
+  unidade: "% a.a."
+  preditor: false
+vix:
+  nome: "VIX (medo no mercado americano)"
+  familia: exterior
+  fonte: fred
+  codigo: VIXCLS
+  defasagem: {dias: 1}
+  transformacao: nivel
+  unidade: "pontos"
+  explicacao: "o índice de medo da bolsa americana; quando sobe, investidores fogem de risco"
+sp500_var12m:
+  nome: "S&P 500 (variação em 12 meses)"
+  familia: exterior
+  fonte: yahoo
+  codigo: "^GSPC"
+  defasagem: {dias: 1}
+  transformacao: var12m
+  unidade: "%"
+  explicacao: "o desempenho da bolsa americana"
+dxy_var12m:
+  nome: "DXY (dólar no mundo, variação em 12 meses)"
+  familia: exterior
+  fonte: yahoo
+  codigo: "DX-Y.NYB"
+  defasagem: {dias: 1}
+  transformacao: var12m
+  unidade: "%"
+  explicacao: "a força do dólar contra outras moedas fortes"
+brent_var12m:
+  nome: "Petróleo Brent (variação em 12 meses)"
+  familia: exterior
+  fonte: fred
+  codigo: DCOILBRENTEU
+  defasagem: {dias: 7}
+  transformacao: var12m
+  unidade: "%"
+  explicacao: "o preço do petróleo"
+commodities_var12m:
+  nome: "Índice de commodities do FMI (variação em 12 meses)"
+  familia: exterior
+  fonte: fred
+  codigo: PALLFNFINDEXM
+  defasagem: {meses: 2}
+  transformacao: var12m
+  unidade: "%"
+  explicacao: "os preços das matérias-primas no mundo"
+
+# ---------------- Setor: bancos ----------------
+inad_total:
+  nome: "Inadimplência acima de 90 dias (total)"
+  familia: setor
+  fonte: sgs
+  codigo: 21082
+  defasagem: {meses: 2}
+  transformacao: nivel
+  unidade: "%"
+  revisada: true
+  explicacao: "a fatia do crédito com atraso acima de 90 dias; mais calote exige mais provisão"
+inad_pf:
+  nome: "Inadimplência acima de 90 dias (pessoas físicas)"
+  familia: setor
+  fonte: sgs
+  codigo: 21084
+  defasagem: {meses: 2}
+  transformacao: nivel
+  unidade: "%"
+  revisada: true
+  explicacao: "o calote das pessoas físicas"
+inad_pj:
+  nome: "Inadimplência acima de 90 dias (empresas)"
+  familia: setor
+  fonte: sgs
+  codigo: 21083
+  defasagem: {meses: 2}
+  transformacao: nivel
+  unidade: "%"
+  revisada: true
+  explicacao: "o calote das empresas"
+inad_rural_pf:
+  nome: "Inadimplência do crédito rural (pessoas físicas)"
+  familia: setor
+  fonte: sgs
+  codigo: 21148
+  defasagem: {meses: 2}
+  transformacao: nivel
+  unidade: "%"
+  revisada: true
+  explicacao: "o calote no crédito rural, onde o Banco do Brasil é o maior credor"
+spread_credito:
+  nome: "Spread médio do crédito"
+  familia: setor
+  fonte: sgs
+  codigo: 20783
+  defasagem: {meses: 2}
+  transformacao: nivel
+  unidade: "p.p."
+  revisada: true
+  explicacao: "a diferença entre o juro cobrado nos empréstimos e o custo de captação dos bancos"
+icc:
+  nome: "Indicador de Custo do Crédito (ICC)"
+  familia: setor
+  fonte: sgs
+  codigo: 25351
+  defasagem: {meses: 2}
+  transformacao: nivel
+  unidade: "% a.a."
+  revisada: true
+  explicacao: "o juro médio de toda a carteira de crédito do país"
+cresc_credito_sfn:
+  nome: "Carteira de crédito do país (variação em 12 meses)"
+  familia: setor
+  fonte: sgs
+  codigo: 20539
+  defasagem: {meses: 2}
+  transformacao: var12m
+  unidade: "%"
+  revisada: true
+  explicacao: "o crescimento do crédito no sistema financeiro"
+soja_var12m:
+  nome: "Soja (preço internacional, variação em 12 meses)"
+  familia: setor
+  fonte: fred
+  codigo: PSOYBUSDM
+  defasagem: {meses: 2}
+  transformacao: var12m
+  unidade: "%"
+  explicacao: "o preço da soja, que pesa na renda do agro e na capacidade de pagar o crédito rural"
+milho_var12m:
+  nome: "Milho (preço internacional, variação em 12 meses)"
+  familia: setor
+  fonte: fred
+  codigo: PMAIZMTUSDM
+  defasagem: {meses: 2}
+  transformacao: var12m
+  unidade: "%"
+  explicacao: "o preço do milho, outra fonte de renda do agro"

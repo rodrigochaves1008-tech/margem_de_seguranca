@@ -1,0 +1,82 @@
+# Configuração do Margem de Segurança.
+# Frações usam ponto decimal: 0.15 = 15%.
+# Mudanças em "modelo" alteram as estimativas e mudam a versão do modelo (o walk-forward é refeito).
+
+# Faixas da margem de segurança, (V − P) ÷ V.
+faixas_margem:
+  desconto_forte: 0.30      # margem acima de 30%
+  desconto_moderado: 0.15   # de 15% a 30%
+  premio_moderado: -0.15    # de −15% a −30%
+  premio_forte: -0.30       # abaixo de −30%
+  # entre −15% e 15%: perto do preço justo
+
+ranking_dos_ativos:
+  prazo_desatualizada_dias: 30      # análise com essa idade ou mais fica marcada como desatualizada
+  concentracao_primeiros: 10        # olhar os N primeiros para o aviso de fator comum
+  concentracao_fracao: 0.5          # aviso se essa fração ou mais tiver o mesmo setor ou principal preditor
+
+# Critério de estimativa confiável: o mesmo para todos os ativos.
+estimativa_confiavel:
+  meses_fora_amostra_min: 60        # pelo menos 5 anos de estimativas walk-forward
+  meses_faixa_min: 24               # sem faixa de 80% com menos que isso
+  janela_comparacao_meses: 60       # últimos meses usados na comparação com o passeio aleatório
+  razao_mape_12m_max: 1.00          # MAPE do modelo ÷ MAPE do passeio aleatório, preço 12 meses depois
+  razao_mape_6m_max: 1.10           # idem, 6 meses depois
+  cobertura_faixa_min: 0.70         # % dos meses com o preço dentro da faixa de 80%
+  cobertura_faixa_max: 0.90
+  erro_tipico_max: 0.35
+  dias_ultima_divulgacao_max: 180   # idade máxima do último balanço usado
+  cobertura_obrigatorios_min: 0.80  # preditores obrigatórios do setor
+  pregoes_sem_negocio_max: 5
+  razao_v_p_min: 0.2
+  razao_v_p_max: 5.0
+  variacao_sementes_max: 0.10       # só checagem de estabilidade, nunca para a faixa
+
+modelo:
+  inicio_dados: "2010-01-01"
+  meses_treino_min: 36              # primeiro retreino só com pelo menos 36 meses de treino
+  anos_fora_amostra: 10             # backtest mostrado: últimos 10 anos
+  anos_fora_amostra_min: 5
+  sementes: [11, 23, 37, 53, 71]    # a rede neural é a média dessas sementes
+  escolha:
+    horizontes_meses: [6, 12]       # preço 6 e 12 meses depois
+    meses_fechados_min: 12          # resultados fechados mínimos para escolher; antes disso, o padrão
+    janela_meses: 60                # usa os últimos 60 meses fechados
+    candidato_padrao: "ensemble_todos|log_pvp"
+  selecao_variaveis:
+    cobertura_min: 0.90             # no período de treino
+    correlacao_max: 0.90            # acima disso, a variável é redundante
+    max_variaveis: 12
+    obs_por_variavel: 10            # no máximo 1 variável a cada 10 meses de treino
+  rede_neural:
+    camadas_ocultas: [8]
+    alphas: [0.1, 1.0]              # regularização L2 (cada valor é um candidato)
+    taxa_aprendizado: 0.01
+    epocas_max: 400
+    paciencia: 30
+    fracao_validacao: 0.2           # bloco final do treino, em ordem de tempo
+    intervalo_validacao_meses: 6    # meses descartados entre treino e validação
+  ridge:
+    alphas: [1.0, 10.0]
+  boosting:
+    iteracoes: 150
+    taxa_aprendizado: 0.05
+    profundidade_max: 2
+    folhas_min: 10
+    l2: 1.0
+
+# Margem como sinal (Fase 2).
+custos:
+  ida_e_volta: 0.0025
+
+# Checagem com valuation tradicional.
+valuation:
+  premio_risco_acoes: 0.05          # prêmio sobre a NTN-B longa no custo de capital
+  crescimento_real_longo_prazo: 0.01
+  bazin_taxa: 0.06
+  graham_fator: 22.5
+
+atualizacao:
+  cvm_idade_max_horas: 12           # arquivos da CVM do ano corrente
+  precos_idade_max_horas: 4
+  macro_idade_max_horas: 20

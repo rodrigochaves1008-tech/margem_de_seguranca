@@ -1,0 +1,13 @@
+# Eventos que entram como marcas no gráfico do preço e nas Mudanças estruturais do relatório.
+# Desdobramentos e grupamentos vêm dos dados de preço; não precisam estar aqui.
+# Fase 3: a cada rodada, a pesquisa na web acrescenta mudanças dos últimos 24 meses, com fonte e data.
+#
+# Formato:
+# - data: "AAAA-MM-DD"
+#   titulo: "..."
+#   tipo: tributario | contabil | regulatorio | controle | estatal | outro
+#   setores: [bancos]          # ou [todos]
+#   ativos: [BBAS3]            # opcional
+#   efeito_esperado: positivo | negativo | incerto
+#   fonte: "URL"
+eventos: []

@@ -1,0 +1,71 @@
+# Mapa setor → preditores. Edite à vontade.
+# Mudar a lista de um setor muda a versão do modelo desse setor: o walk-forward dele é refeito.
+# Os nomes dos preditores estão em config/series.yaml (macro, exterior, setor) e em
+# margem/fundamentos.py (empresa).
+# Ativo de setor fora do mapa (ou com "ativo: false"): a rodada para e propõe os preditores.
+
+ativos:
+  BBAS3: {nome: "Banco do Brasil", setor: bancos, cnpj: "00.000.000/0001-91"}
+  WEGE3: {nome: "WEG", setor: industria, cnpj: "84.429.695/0001-11"}
+  CMIG4: {nome: "Cemig", setor: energia_eletrica, cnpj: "17.155.730/0001-64"}
+
+setores:
+  bancos:
+    nome: "Bancos"
+    ativo: true
+    contabilidade: banco
+    # Alvos em disputa no walk-forward (valor de mercado, P/L e P/VP, todos em log).
+    alvos: [log_valor_mercado, log_pl, log_pvp]
+    preditores:
+      empresa: [log_lucro_12m, log_patrimonio, roe, roa, cresc_lucro_12m, cresc_lucro_3a,
+                eficiencia, custo_credito, margem_financeira, cresc_ativo_12m, alavancagem, payout]
+      setor: [inad_total, inad_pf, inad_pj, inad_rural_pf, spread_credito, icc,
+              cresc_credito_sfn, soja_var12m, milho_var12m]
+      macro_brasil: [selic, juro_curto, juro_longo, inclinacao, juro_real_longo, ipca_12m,
+                     igpm_12m, focus_ipca_12m, focus_selic_prox_ano, focus_pib_prox_ano,
+                     dolar_var12m, ibc_br_var12m, desemprego, ibovespa_var12m, premio_risco_brasil]
+      exterior: [fed_funds, ust2, ust10, vix, sp500_var12m, dxy_var12m, brent_var12m,
+                 commodities_var12m]
+    obrigatorios: [roe, selic, inad_total]
+
+  # Setores abaixo: entram na Fase 2. Listas iniciais, a revisar antes de ativar.
+  industria:
+    nome: "Indústria"
+    ativo: false
+    contabilidade: geral
+    alvos: [log_valor_mercado, log_pl, log_pvp, log_ev_ebitda]
+    preditores:
+      setor: [nuci, producao_industrial_var12m, producao_bens_capital_var12m, confianca_industria,
+              cobre_var12m, aco_var12m, ipa_industrial_12m, euro_var12m, producao_industrial_eua_var12m]
+  energia_eletrica:
+    nome: "Energia elétrica"
+    ativo: false
+    contabilidade: geral
+    alvos: [log_valor_mercado, log_pl, log_pvp, log_ev_ebitda]
+    preditores:
+      setor: [reservatorios_seco, gsf, pld, carga_energia_var12m, igpm_12m, ipca_12m]
+  varejo:
+    nome: "Varejo"
+    ativo: false
+    preditores:
+      setor: [pmc_var12m, confianca_consumidor, massa_salarial_var12m, juros_pf]
+  saude:
+    nome: "Saúde e farmacêutico"
+    ativo: false
+    preditores:
+      setor: [reajuste_cmed, dolar_var12m]
+  educacao:
+    nome: "Educação"
+    ativo: false
+    preditores:
+      setor: [fies_prouni, matriculas, evasao, ticket_medio]
+  commodities:
+    nome: "Commodities (mineração, siderurgia, celulose, petróleo)"
+    ativo: false
+    preditores:
+      setor: [preco_commodity, dolar_var12m, china_indicador]
+  construcao:
+    nome: "Construção"
+    ativo: false
+    preditores:
+      setor: [incc_12m, lancamentos, vendas_imoveis, sbpe_var12m]

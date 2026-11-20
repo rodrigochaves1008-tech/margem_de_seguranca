@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "margem-de-seguranca"
+version = "0.1.0"
+description = "Preço justo por modelo, margem de segurança e ranking dos ativos da B3 (estimativa de modelo, não é recomendação de investimento)"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.0",
+    "pandas>=2.2",
+    "scikit-learn>=1.5",
+    "shap>=0.46",
+    "statsmodels>=0.14",
+    "pyarrow>=15",
+    "requests>=2.31",
+    "jinja2>=3.1",
+    "pyyaml>=6.0",
+]
+
+[project.scripts]
+ms = "margem.__main__:main"
+
+[tool.setuptools.packages.find]
+include = ["margem*"]
+
+[tool.setuptools.package-data]
+margem = ["saida/templates/*.html", "saida/static/*"]
