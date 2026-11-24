@@ -44,7 +44,7 @@ def montar(diario: pd.DataFrame, desd: pd.DataFrame, prov: pd.DataFrame, mensal:
         "retorno": [[x.strftime("%Y-%m-%d"), round(float(v), 4)] for x, v in rt.items()],
         "desde": d["data"].min().strftime("%Y-%m-%d") if len(d) else None,
         "confiavel": bool(analise.get("estimativa")),
-        "eventos": [e for e in eventos if pd.Timestamp(e["data"]) > ini and pd.Timestamp(e["data"]) <= ate],
+        "eventos": numerar_marcas([e for e in eventos if ini < pd.Timestamp(e["data"]) <= ate]),
         "justo": [], "historico": [], "tracejado": [],
     }
     if not analise.get("estimativa"):
@@ -78,6 +78,25 @@ def montar(diario: pd.DataFrame, desd: pd.DataFrame, prov: pd.DataFrame, mensal:
             continue
         out["historico"].append([dh.strftime("%Y-%m-%d"), h["preco_justo"] / P.fator_entre(desd, dh, base)])
     return out
+
+
+def numerar_marcas(eventos: list[dict], dias_grupo: int = 75) -> list[dict]:
+    """Numera as marcas em ordem de data. No gráfico vai só o número; marcas próximas (até `dias_grupo` dias
+    da primeira do grupo) dividem um rótulo, como "6–10", para os textos não se sobreporem. A lista
+    numerada fica embaixo do gráfico."""
+    ev = sorted((dict(e) for e in eventos), key=lambda e: (e["data"], e.get("tipo") != "quebra", e.get("rotulo", "")))
+    grupos: list[list[dict]] = []
+    for i, e in enumerate(ev):
+        e["n"] = i + 1
+        if grupos and (pd.Timestamp(e["data"]) - pd.Timestamp(grupos[-1][0]["data"])).days <= dias_grupo:
+            grupos[-1].append(e)
+        else:
+            grupos.append([e])
+    for g in grupos:
+        for e in g:
+            e["marca"] = ""
+        g[0]["marca"] = str(g[0]["n"]) if len(g) == 1 else f"{g[0]['n']}–{g[-1]['n']}"
+    return ev
 
 
 def eventos_de_preco(desd: pd.DataFrame) -> list[dict]:

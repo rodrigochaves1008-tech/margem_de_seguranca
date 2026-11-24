@@ -252,6 +252,7 @@ def escrever_tela_ativo(t: str, d: dict, reg: dict | None, resultado: dict, fora
         "posicao_texto": posicao_texto(t, resultado, fora),
         "marcas": (reg or {}).get("marcas", []) if not fora else [{"texto": "fora do ranking dos ativos", "alerta": True, "dica": ""}],
         "legenda": legenda(a, dg),
+        "marcas_grafico": dg.get("eventos", []),
     }
     if a.get("estimativa"):
         V, ajustado = graficos.ajuste_pos_analise(a["preco_justo"], str(a["data_analise"])[:10], ate, d["diario"], d["desd"], d["prov"])

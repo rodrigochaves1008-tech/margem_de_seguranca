@@ -209,7 +209,8 @@ def analisar(ticker: str, setor: str, base: pd.DataFrame, diario: pd.DataFrame, 
     lags = int(c.get("defasagens_hac", 12))
     validade = int(c.get("validade_pesquisa_dias", 7))
     hoje = pd.Timestamp(hoje).normalize()
-    out = {"relacao": None, "preco": None, "series": [], "eventos": [], "marcas": [], "pesquisa": {}}
+    out = {"relacao": None, "preco": None, "series": [], "eventos": [], "marcas": [], "pesquisa": {},
+           "meses_min_lado_evento": min_lado}
 
     # 1. Relação entre os maiores preditores de hoje e o valor de mercado (fim de cada mês).
     meses = [d for d in base.index if d == (d + pd.offsets.MonthEnd(0)).normalize() and d <= hoje]

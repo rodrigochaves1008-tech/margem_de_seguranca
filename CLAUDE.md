@@ -60,7 +60,23 @@ Atualize esta seção ao fim de cada fase.
   de 80% em 92% dos meses e 14% de variação entre sementes. Erro típico: BBAS3 9,2%, WEGE3 14,4%,
   CMIG4 12,8%. Teste de vazamento passou nos três (3 meses, diferença 0,000000). Walk-forward completo:
   2,8, 5,1 e 5,2 min. Ranking dos ativos: 0 com estimativa, 3 na lista sem estimativa confiável.
-- Aguardando o usuário: começar a Fase 3 (mudanças estruturais e projeção por cenários)?
+- 24/11/2026: o usuário mandou começar a Fase 3 e, no meio, decidiu: sem projeções de futuro (decisão 7) e
+  só a própria empresa também no valuation (pares desligados, decisão 5). Fase 3 implementada no branch
+  `fase-3`; a versão do modelo continua 1.2.0, porque as estimativas não mudam:
+  - `margem/estruturais.py`: Bai-Perron com critério LWZ, CUSUM e Chow com Newey-West nas datas dos eventos;
+  - `config/eventos.yaml`: eventos estáveis;
+  - pesquisa na web da rodada em `saida/ultima_rodada/<T>/mudancas_estruturais.json`, feita pelo Claude
+    antes de rodar (formato na skill);
+  - relatório: seção 5 só com o cenário macro; seção 6 com as mudanças, os testes e as quebras;
+  - gráfico do preço: marcas numeradas, com a lista embaixo.
+- Resultado da Fase 3 (lote BBAS3, WEGE3, CMIG4, preços de 24/11/2026): estimativas iguais às da versão
+  1.2.0, nenhum ativo com estimativa confiável. Quebras na relação entre o valor de mercado e os 5 maiores
+  preditores: BBAS3 em set/2014 e fev/2021, WEGE3 em nov/2019, CMIG4 em ago/2015 e out/2018. CUSUM com
+  p < 0,01 nos três (relação instável no tempo). No preço, nenhuma quebra no retorno médio nem na
+  volatilidade. Pesquisa de 24/11/2026: 8 mudanças no BBAS3, 6 na WEGE3 e 7 na CMIG4. Rodadas seguintes:
+  0,7 a 1,0 min por ativo. Teste de vazamento não refeito, porque a Fase 3 não mexe nas estimativas (o da
+  versão 1.2.0, feito no mesmo dia, passou nos três).
+- Aguardando o usuário: aprovar a Fase 3 e seguir para o aceite.
 - Não apresente o plano de novo. Não mude o desenho do modelo olhando o backtest do período
   todo sem dizer isso ao usuário (seria escolher com o período todo).
 

@@ -125,6 +125,7 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
     dg = graficos.montar(dados.precos.diario, desd, dados.precos.proventos, mensal, analise,
                          historico.do_ativo(ticker), pd.Timestamp(h["data_preco"]), tracejado=False,
                          eventos=graficos.eventos_de_preco(desd) + estr["marcas"])
+    ctx["marcas_grafico"] = dg.get("eventos", [])
     paginas.escrever_relatorio(pasta_rel, ctx, dg)
     _copiar_dados(pasta_rel, base, res, dados, imp, bt, val, foto, analise, estr)
     if ticker in historico.fora_do_ranking():
@@ -545,14 +546,19 @@ def _contexto_estruturais(estr: dict) -> dict:
     linhas = []
     for e in estr.get("eventos", []):
         t = e.get("teste") or {}
+        minimo = estr.get("meses_min_lado_evento", 24)
         if t.get("testavel"):
-            teste = (f"F = {formatos.num(t['F'], 2)}; p = {formatos.num(t['p_valor'], 2)}: "
-                     + ("a relação com o preço mudou depois da data" if t["p_valor"] < 0.05 else "sem mudança detectada"))
+            teste = (("relação entre preço e preditores diferente antes e depois da data" if t["p_valor"] < 0.05
+                      else "sem diferença detectada antes e depois da data")
+                     + f" (F = {formatos.num(t['F'], 2)}; p = {formatos.num(t['p_valor'], 2)})")
         elif t.get("futuro"):
             teste = "data futura"
+        elif "n_depois" in t and t["n_depois"] < t["n_antes"]:
+            teste = (f"ainda sem dados suficientes depois da data ({t['n_depois']} {'mês' if t['n_depois'] == 1 else 'meses'}; "
+                     f"o teste pede {minimo})")
         elif "n_depois" in t:
-            lado = "depois" if t["n_depois"] < t["n_antes"] else "antes"
-            teste = f"poucos meses {lado} da data ({min(t['n_depois'], t['n_antes'])}) para testar"
+            teste = (f"sem dados suficientes antes da data ({t['n_antes']} {'mês' if t['n_antes'] == 1 else 'meses'}; "
+                     f"o teste pede {minimo})")
         else:
             teste = "sem teste (relação não estimada)"
         vig = pd.Timestamp(e["vigencia"])
@@ -599,7 +605,9 @@ def _contexto_estruturais(estr: dict) -> dict:
                 "nem na escolha do modelo. O walk-forward já refaz o modelo a cada divulgação, só com os dados até a "
                 "data; uma mudança só aparece no modelo quando chega aos dados. O teste na data do evento compara a "
                 "relação entre o valor de mercado e os maiores preditores antes e depois da data (24 meses ou mais de "
-                "cada lado). \"O modelo capta?\" diz se o modelo de hoje usa os indicadores por onde a mudança age.")}
+                "cada lado). Uma diferença antes e depois não prova que o evento a causou: quando a relação já é instável "
+                "no período (CUSUM com p baixo), o teste tende a acusar diferença em quase qualquer data. \"O modelo "
+                "capta?\" diz se o modelo de hoje usa os indicadores por onde a mudança age.")}
 
 
 def _mudanca_preditores(res, hoje, alvo) -> str:

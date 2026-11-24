@@ -45,8 +45,18 @@ O setor de cada ativo vem do cadastro da CVM, ligado aos setores do modelo por `
 (`mapa_cvm`). Hoje estão ativos: bancos, indústria e energia elétrica. Cada setor tem a sua lista de
 preditores. O modelo de cada ativo é próprio: treina só com o histórico da empresa (preço e indicadores
 divulgados na CVM) e com as variáveis de mercado, macro e do setor, e cada análise refaz o método inteiro.
-Os pares listados em cada setor servem só para a comparação de múltiplos na checagem com valuation
-tradicional. Ativo de setor fora do mapa: a rodada para e pede a aprovação dos preditores.
+Os pares listados em cada setor só entram na comparação de múltiplos do valuation tradicional se
+`valuation.comparar_com_pares` estiver ligado em `config/configuracao.yaml` (vem desligado). Ativo de setor
+fora do mapa: a rodada para e pede a aprovação dos preditores.
+
+## Mudanças estruturais
+
+O relatório traz os testes de quebras estruturais: na relação entre os maiores preditores e o preço, no
+retorno e na volatilidade do preço e nas séries dos preditores. Traz também as mudanças de regras do setor e
+da empresa. As estáveis ficam em `config/eventos.yaml`. As dos últimos 24 meses e as já aprovadas vêm da
+pesquisa na web feita pelo Claude antes de rodar, gravada em
+`saida/ultima_rodada/<TICKER>/mudancas_estruturais.json` (formato na skill). Tudo é diagnóstico: nada entra
+no preço justo. A ferramenta não faz projeções para o futuro.
 
 ## Onde ficam as coisas
 

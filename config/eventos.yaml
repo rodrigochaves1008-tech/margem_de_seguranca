@@ -20,6 +20,8 @@ eventos:
   setores: [energia_eletrica]
   efeito_esperado: negativo
   fonte: "https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2013/lei/l12783.htm"
+  fonte_titulo: "Planalto: Lei 12.783/2013"
+  fonte_data: "2013-01-11"
 - data: "2016-06-30"
   titulo: "Lei das Estatais (Lei 13.303/2016): regras de governança e de indicação de dirigentes nas empresas estatais"
   rotulo: "Lei das Estatais"
@@ -28,6 +30,8 @@ eventos:
   ativos: [BBAS3, CMIG4]
   efeito_esperado: positivo
   fonte: "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2016/lei/l13303.htm"
+  fonte_titulo: "Planalto: Lei 13.303/2016"
+  fonte_data: "2016-06-30"
 - data: "2023-12-20"
   titulo: "Reforma tributária do consumo promulgada (Emenda Constitucional 132/2023): CBS e IBS no lugar de PIS, Cofins, IPI, ICMS e ISS"
   rotulo: "EC 132 (reforma tributária)"
@@ -35,3 +39,5 @@ eventos:
   setores: [todos]
   efeito_esperado: incerto
   fonte: "https://www.planalto.gov.br/ccivil_03/constituicao/emendas/emc/emc132.htm"
+  fonte_titulo: "Planalto: Emenda Constitucional 132/2023"
+  fonte_data: "2023-12-20"
