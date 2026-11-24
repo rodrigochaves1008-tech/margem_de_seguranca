@@ -638,8 +638,8 @@ def _contexto_analistas(alvos, desd, h, validade: int) -> dict:
             f"{formatos.data(r['data_pesquisa'])}; não são estimativas do modelo nem entram no preço justo. A linha do "
             f"gráfico é, em cada data, a média do último preço-alvo de cada casa publicado nos {validade} meses anteriores, "
             "na base de ações de hoje (desdobramentos e grupamentos posteriores ajustados). Em destaque, os alvos que entram "
-            "na média de hoje. A cobertura depende do que foi publicado e encontrado: casas que não divulgam os alvos ficam "
-            "de fora.")
+            "na média de hoje. Datas com \"aprox.\": a notícia só permite saber o mês; o alvo entra no fim do mês, nunca "
+            "antes. A cobertura depende do que foi publicado e encontrado: casas que não divulgam os alvos ficam de fora.")
     return {"analistas": r, "texto_analistas": txt, "nota_analistas": nota}
 
 

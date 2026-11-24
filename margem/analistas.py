@@ -85,7 +85,7 @@ def resumo_hoje(alvos: dict | None, desd: pd.DataFrame, hoje, preco: float, vali
     v, n, vigentes = media_em(itens, hoje, validade_meses)
     vig = {(x[0], x[1]) for x in vigentes}
     tabela = [{"data": d, "casa": casa, "alvo_base_hoje": vb, "alvo_original": float(a["preco_alvo"]),
-               "recomendacao": a.get("recomendacao"), "vigente": (d, casa) in vig, "fontes": a.get("fontes") or []}
+               "recomendacao": a.get("recomendacao"), "aproximada": bool(a.get("data_aproximada")), "vigente": (d, casa) in vig, "fontes": a.get("fontes") or []}
               for d, casa, vb, a in sorted(itens, key=lambda x: (x[0], x[1]), reverse=True)]
     return {"v": v, "n": n, "potencial": (v / preco - 1) if np.isfinite(v) and preco else np.nan,
             "data_pesquisa": alvos.get("data_pesquisa"), "tabela": tabela,

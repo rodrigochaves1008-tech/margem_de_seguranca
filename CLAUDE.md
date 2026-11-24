@@ -89,7 +89,20 @@ Atualize esta seção ao fim de cada fase.
     maior. A correção das ações informadas em milhares usava o FRE mais próximo pela data de referência,
     mesmo entregue depois. Corrigido: só contam FRE já entregues. Nos dados reais as ações não mudam e as
     estimativas guardadas seguem valendo. Refeito, passou nos três (9 meses, diferença 0,000000).
-- Aguardando o usuário: juntar o branch `fase-3` na `main` e instalar no PC (rodar de novo o
+- 24/11/2026: `fase-3` juntado na `main` (430687f). O usuário pediu: (1) uma linha com a média das
+  perspectivas públicas dos analistas (preços-alvo) no gráfico e no relatório; (2) um estudo das épocas de
+  margem de segurança alta, comparadas com o preço de hoje. Para o estudo, escolheu a margem do modelo, com a
+  ressalva de modelo não confiável. Feito no branch `analistas` (código 0.5.0; modelo segue 1.2.0):
+  - `margem/analistas.py`;
+  - pesquisa dos preços-alvo pelo Claude a cada rodada, em `saida/ultima_rodada/<T>/precos_alvo.json`
+    (cumulativo; data só com o mês entra no fim do mês, marcada "aprox.");
+  - linha no gráfico do preço (e no do preço justo, quando há); tabela na seção 2 e estudo na seção 7.
+- Primeira pesquisa dos preços-alvo (24/11/2026), com histórico curto:
+  - BBAS3: 5 alvos desde out/2025; média de hoje R$ 22,57 (4 casas);
+  - WEGE3: 8 alvos desde jan/2026; média de hoje R$ 57,03 (7 casas);
+  - CMIG4: 2 alvos; média de hoje R$ 12,45.
+  Próximas rodadas: aprofundar (anos anteriores e datas exatas).
+- Aguardando o usuário: aprovar e juntar `analistas` na `main`; instalar no PC (rodar de novo o
   `instalar.ps1`, que instala o `ruptures` e a skill nova).
 - Não apresente o plano de novo. Não mude o desenho do modelo olhando o backtest do período
   todo sem dizer isso ao usuário (seria escolher com o período todo).
@@ -133,6 +146,10 @@ Notas técnicas aprendidas na Fase 1:
    Focus, otimista e pessimista). A seção 5 do relatório passa a ser só "Cenário macro" (dados já
    divulgados) e a tela não tem a opção de cenários. Nas mudanças estruturais, o efeito esperado fica só
    na direção (positivo, negativo ou incerto), com a explicação, sem números.
+8. Perspectivas dos analistas (24/11/2026): linha com a média dos preços-alvo públicos de bancos e corretoras
+   (terceiros, com data e fonte) no gráfico e no relatório. Não entra no modelo nem no preço justo.
+9. Estudo das épocas de margem alta (24/11/2026): usa a margem de segurança do modelo (walk-forward), com a
+   ressalva quando o modelo não é confiável para o ativo.
 
 Os itens 2 a 4 são as propostas do plano, adotadas sem objeção do usuário. Ele pode mudá-las.
 
