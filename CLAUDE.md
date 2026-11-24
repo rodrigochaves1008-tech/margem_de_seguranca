@@ -115,6 +115,8 @@ Atualize esta seção ao fim de cada fase.
   - hoje a margem do modelo, +14,9%, está entre as épocas de margem alta.
 - 24/11/2026: a pedido do usuário, WEGE3 e CMIG4 saíram do ranking dos ativos por ora (`ms tirar`; histórico,
   relatórios e telas mantidos). Se a pasta `saida` sumir, repetir. Rodar o ativo de novo o traz de volta.
+- 24/11/2026: a pedido do usuário, saíram a linha dos preços-alvo dos analistas e o estudo das épocas de
+  margem alta (decisões 8 e 9 retiradas). Código 0.6.0; o modelo segue 1.2.0.
 - Pendente no PC: rodar de novo o `instalar.ps1`, que instala o `ruptures` e a skill nova.
 - Não apresente o plano de novo. Não mude o desenho do modelo olhando o backtest do período
   todo sem dizer isso ao usuário (seria escolher com o período todo).
@@ -158,10 +160,9 @@ Notas técnicas aprendidas na Fase 1:
    Focus, otimista e pessimista). A seção 5 do relatório passa a ser só "Cenário macro" (dados já
    divulgados) e a tela não tem a opção de cenários. Nas mudanças estruturais, o efeito esperado fica só
    na direção (positivo, negativo ou incerto), com a explicação, sem números.
-8. Perspectivas dos analistas (24/11/2026): linha com a média dos preços-alvo públicos de bancos e corretoras
-   (terceiros, com data e fonte) no gráfico e no relatório. Não entra no modelo nem no preço justo.
-9. Estudo das épocas de margem alta (24/11/2026): usa a margem de segurança do modelo (walk-forward), com a
-   ressalva quando o modelo não é confiável para o ativo.
+8. e 9. Perspectivas dos analistas e estudo das épocas de margem alta (24/11/2026): pedidos e retirados
+   pelo usuário no mesmo dia ("deixar sem essa etapa"). A ferramenta não tem a linha dos preços-alvo nem o
+   estudo. O código ficou no histórico do git (commit 113e8cc).
 
 Os itens 2 a 4 são as propostas do plano, adotadas sem objeção do usuário. Ele pode mudá-las.
 

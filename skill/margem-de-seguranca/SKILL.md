@@ -72,23 +72,6 @@ arquivo (seção 6). Num lote, a parte do setor pode ser pesquisada uma vez e re
 - Eventos estáveis, que valem para todas as rodadas, ficam em `config/eventos.yaml`.
 - Sem internet, rode mesmo assim: o relatório diz que a pesquisa não foi feita nesta rodada.
 
-## Preços-alvo públicos dos analistas: pesquisa na web a cada rodada
-
-Antes de rodar cada ativo, pesquise na web os preços-alvo publicados por bancos e corretoras (notícias,
-relatórios abertos, páginas de RI), com a data da publicação e a fonte. Leia o arquivo
-`saida/ultima_rodada/<TICKER>/precos_alvo.json` se existir, mantenha os itens antigos e acrescente os
-novos sem repetir casa e data. O gráfico mostra a média do último alvo de cada casa nos 12 meses
-anteriores; o relatório traz a tabela.
-
-```
-{"ticker": "BBAS3", "data_pesquisa": "AAAA-MM-DD",
- "itens": [{"data": "AAAA-MM-DD", "casa": "Banco X", "preco_alvo": 30.0, "recomendacao": "compra | neutra | venda",
-            "fontes": [{"url": "...", "titulo": "...", "data": "AAAA-MM-DD"}]}]}
-```
-
-- `preco_alvo`: em reais, como publicado na data (a ferramenta ajusta por desdobramentos e grupamentos).
-- Só alvos com data e fonte; nada de estimar alvos que não foram publicados.
-
 ## Regras
 
 - Diga sempre "ranking dos ativos", nunca só "ranking" (para não confundir com o ranking dos

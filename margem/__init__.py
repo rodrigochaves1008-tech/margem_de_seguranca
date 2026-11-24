@@ -15,7 +15,7 @@ for _var in (
 ):
     _os.environ.setdefault(_var, "1")
 
-VERSAO_CODIGO = "0.5.0"
+VERSAO_CODIGO = "0.6.0"
 # Mude só quando a mudança alterar as estimativas (ver CLAUDE.md, "Ranking dos ativos analisados").
 VERSAO_MODELO_BASE = "1.2.0"
 

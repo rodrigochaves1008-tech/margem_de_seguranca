@@ -95,12 +95,3 @@ estruturais:
   meses_min_lado_evento: 24         # teste na data do evento só com 24 meses antes e depois
   defasagens_hac: 12                # erros de Newey-West no teste da data do evento
   validade_pesquisa_dias: 7         # pesquisa na web mais velha que isso aparece como anterior à rodada
-
-# Perspectivas públicas dos analistas (preços-alvo de terceiros; não entram no preço justo).
-analistas:
-  validade_meses: 12                # um preço-alvo vale por 12 meses ou até a casa publicar outro
-
-# Estudo das épocas de margem de segurança alta (relatório, seção 7).
-estudo_margem:
-  quantil: 0.80                     # épocas com margem no quinto superior do histórico do ativo
-  meses_para_juntar: 3              # meses altos separados por até 3 meses formam uma época

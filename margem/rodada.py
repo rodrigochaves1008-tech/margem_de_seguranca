@@ -10,7 +10,7 @@ from datetime import date, datetime
 import numpy as np
 import pandas as pd
 
-from . import (AVISO, analistas, avaliacao, caminhos, config, estruturais, formatos, graficos, historico, macro, painel,
+from . import (AVISO, avaliacao, caminhos, config, estruturais, formatos, graficos, historico, macro, painel,
                preditores, ranking_dos_ativos, valuation)
 from .fontes import cvm as fonte_cvm
 from .modelo import candidatos as C
@@ -109,12 +109,6 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
     if estr["pesquisa"].get("situacao") != "ok":
         progresso(f"{ticker}: aviso: sem pesquisa na web das mudanças estruturais feita para esta rodada "
                   f"(saida/ultima_rodada/{ticker}/mudancas_estruturais.json)")
-    alvos = analistas.ler_alvos(ticker)
-    validade = int(cfg.get("analistas", {}).get("validade_meses", 12))
-    if not alvos:
-        progresso(f"{ticker}: aviso: sem pesquisa dos preços-alvo públicos dos analistas "
-                  f"(saida/ultima_rodada/{ticker}/precos_alvo.json)")
-    estudo = analistas.epocas_de_margem_alta(mensal, dados.precos.diario, desd, dados.precos.proventos, h, cfg)
 
     stamp = agora.strftime("%Y-%m-%d_%H%M")
     pasta_rel = caminhos.pasta_relatorios(ticker) / stamp
@@ -128,12 +122,9 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
                               dados, foto, agora, hoje, cfg)
     ctx.update(_contexto_fase2(sinais, historia_preditores, pares, setor))
     ctx.update(_contexto_estruturais(estr))
-    ctx.update(_contexto_analistas(alvos, desd, h, validade))
-    ctx.update(_contexto_estudo(estudo, analise["estimativa"]))
     dg = graficos.montar(dados.precos.diario, desd, dados.precos.proventos, mensal, analise,
                          historico.do_ativo(ticker), pd.Timestamp(h["data_preco"]), tracejado=False,
-                         eventos=graficos.eventos_de_preco(desd) + estr["marcas"],
-                         alvos=(alvos or {}).get("itens"), validade_meses=validade)
+                         eventos=graficos.eventos_de_preco(desd) + estr["marcas"])
     ctx["marcas_grafico"] = dg.get("eventos", [])
     paginas.escrever_relatorio(pasta_rel, ctx, dg)
     _copiar_dados(pasta_rel, base, res, dados, imp, bt, val, foto, analise, estr)
@@ -338,9 +329,6 @@ def _copiar_dados(pasta, base, res, dados, imp, bt, val, foto, analise, estr) ->
     pesq = caminhos.pasta_ultima_rodada(analise["ticker"]) / "mudancas_estruturais.json"
     if pesq.exists():
         shutil.copyfile(pesq, d / "mudancas_estruturais.json")
-    alv = caminhos.pasta_ultima_rodada(analise["ticker"]) / "precos_alvo.json"
-    if alv.exists():
-        shutil.copyfile(alv, d / "precos_alvo.json")
     shutil.copyfile(caminhos.CONFIG / "eventos.yaml", d / "eventos.yaml")
     shutil.copyfile(caminhos.CONFIG / "configuracao.yaml", d / "configuracao.yaml")
     shutil.copyfile(caminhos.CONFIG / "setores.yaml", d / "setores.yaml")
@@ -620,52 +608,6 @@ def _contexto_estruturais(estr: dict) -> dict:
                 "cada lado). Uma diferença antes e depois não prova que o evento a causou: quando a relação já é instável "
                 "no período (CUSUM com p baixo), o teste tende a acusar diferença em quase qualquer data. \"O modelo "
                 "capta?\" diz se o modelo de hoje usa os indicadores por onde a mudança age.")}
-
-
-def _contexto_analistas(alvos, desd, h, validade: int) -> dict:
-    base = pd.Timestamp(h["data_preco"])
-    r = analistas.resumo_hoje(alvos, desd, base, h.get("preco"), validade)
-    if not r:
-        return {"analistas": None, "texto_analistas": "", "nota_analistas":
-                "A pesquisa dos preços-alvo públicos dos analistas não foi feita para esta rodada."}
-    if r["n"]:
-        txt = (f"Média dos preços-alvo públicos em {formatos.data(base)}: {formatos.moeda(r['v'])}, com {r['n']} "
-               f"{'casa' if r['n'] == 1 else 'casas'} com alvo publicado nos últimos {validade} meses, "
-               f"{formatos.pct(r['potencial'], 1, True)} sobre o preço de {formatos.moeda(h.get('preco'))}.")
-    else:
-        txt = f"Nenhum preço-alvo público dos últimos {validade} meses foi encontrado; a tabela traz os mais antigos."
-    nota = ("Perspectivas de terceiros (bancos e corretoras), com data e fonte, da pesquisa na web de "
-            f"{formatos.data(r['data_pesquisa'])}; não são estimativas do modelo nem entram no preço justo. A linha do "
-            f"gráfico é, em cada data, a média do último preço-alvo de cada casa publicado nos {validade} meses anteriores, "
-            "na base de ações de hoje (desdobramentos e grupamentos posteriores ajustados). Em destaque, os alvos que entram "
-            "na média de hoje. Datas com \"aprox.\": a notícia só permite saber o mês; o alvo entra no fim do mês, nunca "
-            "antes. A cobertura depende do que foi publicado e encontrado: casas que não divulgam os alvos ficam de fora.")
-    return {"analistas": r, "texto_analistas": txt, "nota_analistas": nota}
-
-
-def _contexto_estudo(e: dict, confiavel: bool) -> dict:
-    if not e.get("ok"):
-        return {"estudo": e, "texto_estudo": "", "nota_estudo": f"Estudo não feito: {e.get('motivo')}."}
-    ressalva = ("" if confiavel else "O modelo não passou no critério de estimativa confiável para este ativo: as margens "
-                "abaixo são as do backtest walk-forward e servem só para estudo, não como estimativa. ")
-    n = len(e["epocas"])
-    txt = (ressalva + "Épocas em que a margem de segurança do walk-forward ficou no quinto superior do histórico do ativo "
-           f"({formatos.mes(e['inicio'])} a {formatos.mes(e['fim'])}, {e['n_meses']} meses), com margem de "
-           f"{formatos.pct(e['limiar'], 1, True)} ou mais: {n} {'época' if n == 1 else 'épocas'}. ")
-    if e["n12"] or e["n6"]:
-        txt += (f"Depois do pico de cada época, o retorno médio com proventos foi de {formatos.pct(e['media_ret6_total'], 1, True)} "
-                f"em 6 meses ({e['n6']} com prazo fechado) e de {formatos.pct(e['media_ret12_total'], 1, True)} em 12 meses "
-                f"({e['n12']}). ")
-    if np.isfinite(e["margem_hoje"]):
-        txt += (f"Hoje, com o preço de {formatos.moeda(e['preco_hoje'])}, a margem do modelo é de "
-                f"{formatos.pct(e['margem_hoje'], 1, True)}, maior que a de {formatos.pct(e['percentil_hoje'], 0)} dos meses "
-                "do histórico: " + ("está entre as épocas de margem alta." if e["hoje_entre_altas"]
-                                    else "fora das épocas de margem alta."))
-    nota = ("Preço e preço justo de cada época na base de ações de hoje. Retornos 6 e 12 meses depois do pico, com proventos "
-            "reinvestidos e sem custos; \"—\" quando o prazo ainda não fechou. \"Preço de hoje vs. o do pico\": quanto o "
-            "preço de hoje está acima ou abaixo do preço no pico da época. Poucas épocas, com fatores em comum: resultado "
-            "descritivo, sem valor estatístico; o passado não garante o futuro.")
-    return {"estudo": e, "texto_estudo": txt, "nota_estudo": nota}
 
 
 def _mudanca_preditores(res, hoje, alvo) -> str:
