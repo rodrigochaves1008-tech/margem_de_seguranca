@@ -102,8 +102,14 @@ Atualize esta seção ao fim de cada fase.
   - WEGE3: 8 alvos desde jan/2026; média de hoje R$ 57,03 (7 casas);
   - CMIG4: 2 alvos; média de hoje R$ 12,45.
   Próximas rodadas: aprofundar (anos anteriores e datas exatas).
-- Aguardando o usuário: aprovar e juntar `analistas` na `main`; instalar no PC (rodar de novo o
-  `instalar.ps1`, que instala o `ruptures` e a skill nova).
+- 24/11/2026: o usuário mandou juntar `analistas` na `main` (feito) e aprofundar a pesquisa dos preços-alvo,
+  só do BBAS3 ("quero só a análise do BBAS3"). Pausa pela regra dos créditos às 14:21, com a janela de 5
+  horas perto de 50%; volta agendada para 17:53 (horário de Brasília). Ao voltar:
+  - pesquisar alvos públicos do BBAS3 de anos anteriores (2016 a 2025) e as datas exatas dos já gravados;
+  - atualizar `saida/ultima_rodada/BBAS3/precos_alvo.json` sem apagar itens. Se a pasta `saida` sumiu
+    (máquina nova), partir das cópias em `skill/exemplos/`;
+  - rodar o BBAS3, conferir, fazer commit e push e mostrar o resultado só do BBAS3.
+- Pendente no PC: rodar de novo o `instalar.ps1`, que instala o `ruptures` e a skill nova.
 - Não apresente o plano de novo. Não mude o desenho do modelo olhando o backtest do período
   todo sem dizer isso ao usuário (seria escolher com o período todo).
 

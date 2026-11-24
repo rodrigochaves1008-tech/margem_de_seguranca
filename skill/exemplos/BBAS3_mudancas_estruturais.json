@@ -1,0 +1,202 @@
+{
+ "ticker": "BBAS3",
+ "data_pesquisa": "2026-11-24",
+ "janela": "últimos 24 meses (desde 24/11/2024) e mudanças já aprovadas",
+ "itens": [
+  {
+   "data": "2025-01-16",
+   "titulo": "Reforma tributária do consumo regulamentada (LC 214/2025): IBS, CBS e Imposto Seletivo no lugar de PIS, Cofins, IPI, ICMS e ISS",
+   "rotulo": "LC 214 (reforma tributária)",
+   "tipo": "tributario",
+   "situacao": "aprovada, em transição",
+   "vigencia": "2027-01-01",
+   "efeito_esperado": "incerto",
+   "explicacao": "Em 2026, teste com CBS de 0,9% e IBS de 0,1%; em 2027, CBS cheia e fim do PIS e da Cofins; de 2029 a 2032, ICMS e ISS caem aos poucos; IBS pleno em 2033. A LC 227/2026 ajustou a lei. Serviços financeiros têm regime específico; o efeito na carga do banco depende das alíquotas ainda a definir.",
+   "canais": [
+    "log_lucro_12m",
+    "roe"
+   ],
+   "fontes": [
+    {
+     "url": "https://www.planalto.gov.br/ccivil_03/LEIS/LCP/Lcp214compilado.htm",
+     "titulo": "Lei Complementar 214/2025 (Planalto)",
+     "data": "2025-01-16"
+    },
+    {
+     "url": "https://pwc.com.br/pt/thinking-about-taxes/tax-intelligence/2025/43%20-%20Reforma%20Tribut%C3%A1ria%20sobre%20o%20Consumo%20-%20LC%20n%C2%BA%20214-2025%20-%20San%C3%A7%C3%A3o%20do%20PLP%20n%C2%BA%2068-2024%20-%20Ed.%2043%20-%2022.01.2025_.pdf",
+     "titulo": "PwC: LC 214/2025, sanção do PLP 68/2024",
+     "data": "2025-01-22"
+    }
+   ]
+  },
+  {
+   "data": "2026-01-13",
+   "titulo": "LC 227/2026: cria o Comitê Gestor do IBS e ajusta a LC 214/2025",
+   "rotulo": "LC 227 (Comitê Gestor do IBS)",
+   "tipo": "tributario",
+   "situacao": "em vigor",
+   "vigencia": "2026-01-14",
+   "efeito_esperado": "incerto",
+   "explicacao": "Segunda etapa da regulamentação: administração, processo e repartição do IBS. Regra operacional, sem efeito direto esperado no lucro.",
+   "canais": [],
+   "fontes": [
+    {
+     "url": "https://www12.senado.leg.br/noticias/materias/2026/01/14/reforma-tributaria-lei-cria-comite-gestor-do-ibs-e-define-regras-do-imposto",
+     "titulo": "Agência Senado: lei cria o Comitê Gestor do IBS",
+     "data": "2026-01-14"
+    }
+   ]
+  },
+  {
+   "data": "2025-11-26",
+   "titulo": "IR sobre dividendos (Lei 15.270/2025): retenção de 10% acima de R$ 50 mil por mês e imposto mínimo para rendas acima de R$ 600 mil por ano",
+   "rotulo": "Lei 15.270 (IR sobre dividendos)",
+   "tipo": "tributario",
+   "situacao": "em vigor",
+   "vigencia": "2026-01-01",
+   "efeito_esperado": "negativo",
+   "explicacao": "A retenção vale para o que uma mesma empresa paga a uma mesma pessoa física acima de R$ 50 mil no mês; lucros até 2025 com distribuição aprovada até 31/12/2025 ficaram de fora. Reduz o retorno líquido do investidor de alta renda em ações que pagam dividendos; o efeito no preço vem da demanda, que nenhum preditor mede, e só aparece no modelo se a empresa mudar o payout.",
+   "canais": [
+    "payout"
+   ],
+   "fontes": [
+    {
+     "url": "https://planalto.gov.br/ccivil_03/_Ato2023-2026/2025/Lei/L15270.htm",
+     "titulo": "Lei 15.270/2025 (Planalto)",
+     "data": "2025-11-26"
+    },
+    {
+     "url": "https://www.mayerbrown.com/pt/insights/publications/2025/12/enactment-of-law-no-15270-2025-which-establishes-dividend-taxation-expands-the-exemption-threshold-and-introduces-a-minimum-tax-on-high-incomes",
+     "titulo": "Mayer Brown: Lei 15.270/2025",
+     "data": null
+    }
+   ]
+  },
+  {
+   "data": "2025-12-26",
+   "titulo": "JCP: IR retido sobe de 15% para 17,5% e a base de cálculo fica mais restrita (LC 224/2025)",
+   "rotulo": "LC 224 (JCP a 17,5%)",
+   "tipo": "tributario",
+   "situacao": "em vigor",
+   "vigencia": "2026-01-01",
+   "efeito_esperado": "negativo",
+   "explicacao": "O acionista recebe menos líquido por real de JCP; com a base restrita, a empresa pode deduzir menos JCP e pagar mais IR e CSLL. Alguns pagadores aumentaram o JCP bruto para manter o líquido.",
+   "canais": [
+    "log_lucro_12m",
+    "payout"
+   ],
+   "fontes": [
+    {
+     "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/estudos/notas-cetad/notas-tecnicas/2026/nota-cetad-coest-no-009-2026",
+     "titulo": "Receita Federal: Nota Cetad/Coest 9/2026",
+     "data": null
+    },
+    {
+     "url": "https://www.pwc.com.br/pt/thinking-about-taxes/tax-intelligence/2025/tax-intelligence-express-ed42-publicacao-da-lc-n224-25.pdf",
+     "titulo": "PwC: publicação da LC 224/2025",
+     "data": null
+    }
+   ]
+  },
+  {
+   "data": "2025-01-01",
+   "titulo": "Novas regras contábeis dos bancos (Resolução CMN 4.966/2021): provisão pela perda esperada, no padrão IFRS 9",
+   "rotulo": "Res. CMN 4.966 (provisões)",
+   "tipo": "contabil",
+   "situacao": "em vigor",
+   "vigencia": "2025-01-01",
+   "efeito_esperado": "negativo",
+   "explicacao": "A provisão passa a antecipar a perda esperada. No BB, analistas atribuem à norma parte do aumento do custo do crédito em 2025; a comparação dos balanços antes e depois de 2025 também muda.",
+   "canais": [
+    "custo_credito",
+    "log_lucro_12m",
+    "roe"
+   ],
+   "fontes": [
+    {
+     "url": "https://www.bcb.gov.br/estabilidadefinanceira/exibenormativo?tipo=Resolu%C3%A7%C3%A3o%20CMN&numero=4966",
+     "titulo": "Banco Central: Resolução CMN 4.966",
+     "data": "2021-11-25"
+    },
+    {
+     "url": "https://agenciabrasil.ebc.com.br/economia/noticia/2026-02/banco-do-brasil-projeta-2026-como-ano-desafiador/",
+     "titulo": "Agência Brasil: BB projeta 2026 como ano desafiador",
+     "data": null
+    }
+   ]
+  },
+  {
+   "data": "2025-08-14",
+   "titulo": "Inadimplência do agro derruba o lucro do BB; payout de 2025 cortado de 40% para 30%",
+   "rotulo": "BB: payout 30% (agro)",
+   "tipo": "outro",
+   "situacao": "em vigor",
+   "vigencia": "2025-08-14",
+   "efeito_esperado": "negativo",
+   "explicacao": "Lucro ajustado de R$ 3,78 bi no 2º trimestre de 2025, queda de 60% em um ano; guidance de lucro de 2025 revisado para R$ 21 a 25 bi.",
+   "canais": [
+    "inad_rural_pf",
+    "custo_credito",
+    "payout",
+    "log_lucro_12m"
+   ],
+   "fontes": [
+    {
+     "url": "https://visnoinvest.com.br/news/9180/banco-do-brasil-bbas3-revisa-payout-de-2025-para-30-e-mantem-cronograma-do-2o-semestre",
+     "titulo": "Visno Invest: BB revisa o payout de 2025 para 30%",
+     "data": "2025-08-14"
+    },
+    {
+     "url": "https://www.infomoney.com.br/mercados/banco-do-brasil-bbas3-resultados-segundo-trimestre-2025/",
+     "titulo": "InfoMoney: BB tem queda anual de 60% no lucro no 2º tri",
+     "data": "2025-08-14"
+    }
+   ]
+  },
+  {
+   "data": "2026-11-10",
+   "titulo": "BB fixa o payout de 2026 e 2027 em 25%, o mínimo obrigatório, citando a inadimplência do agro",
+   "rotulo": "BB: payout 25%",
+   "tipo": "outro",
+   "situacao": "aprovado pelo conselho",
+   "vigencia": "2026-11-10",
+   "efeito_esperado": "negativo",
+   "explicacao": "Sem dividendos intermediários em 2027. Lucro ajustado de 2025: R$ 20,7 bi, queda de 45%; guidance de 2026: R$ 22 a 26 bi.",
+   "canais": [
+    "payout",
+    "inad_rural_pf",
+    "log_lucro_12m"
+   ],
+   "fontes": [
+    {
+     "url": "https://visnoinvest.com.br/news/16441/banco-do-brasil-bbas3-reduz-payout-de-2026-de-30-para-25",
+     "titulo": "Visno Invest: BB reduz o payout de 2026 de 30% para 25%",
+     "data": "2026-11-10"
+    },
+    {
+     "url": "https://borainvestir.b3.com.br/noticias/empresas/banco-do-brasil-tem-lucro-de-r-2068-bilhoes-em-2025/",
+     "titulo": "Bora Investir (B3): BB tem lucro de R$ 20,68 bilhões em 2025",
+     "data": null
+    }
+   ]
+  },
+  {
+   "data": "2026-10-25",
+   "titulo": "Presidente reeleito em 25/10/2026 (posse em 05/01/2027): o controlador do BB mantém a mesma orientação",
+   "rotulo": "Eleição presidencial 2026",
+   "tipo": "estatal",
+   "situacao": "definida",
+   "vigencia": "2026-10-25",
+   "efeito_esperado": "incerto",
+   "explicacao": "O governo federal controla o BB. A continuidade mantém a política atual para o banco (crédito ao agro, renegociações, dividendos); o risco de uso político do banco não é medido por nenhum preditor.",
+   "canais": [],
+   "fontes": [
+    {
+     "url": "https://www12.senado.leg.br/noticias/materias/2026/10/25/lula-2018vira2019-e-e-reeleito-para-quarto-mandato-de-presidente",
+     "titulo": "Agência Senado: presidente reeleito para o quarto mandato",
+     "data": "2026-10-25"
+    }
+   ]
+  }
+ ]
+}

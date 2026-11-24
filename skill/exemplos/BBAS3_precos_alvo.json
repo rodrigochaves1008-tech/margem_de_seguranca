@@ -1,0 +1,86 @@
+{
+ "ticker": "BBAS3",
+ "data_pesquisa": "2026-11-24",
+ "itens": [
+  {
+   "data": "2025-10-31",
+   "casa": "Citi",
+   "preco_alvo": 29.0,
+   "recomendacao": "compra",
+   "data_aproximada": true,
+   "fontes": [
+    {
+     "url": "https://www.suno.com.br/noticias/?p=625138",
+     "titulo": "Suno: Citi recomenda compra e eleva preço-alvo do BBAS3",
+     "data": null
+    },
+    {
+     "url": "https://investidor10.com.br/noticias/banco-do-brasil-bbas3-pode-disparar-33-com-alivio-regulatorio-diz-citi-115506/",
+     "titulo": "Investidor10: BBAS3 pode disparar 33%, diz Citi",
+     "data": null
+    }
+   ]
+  },
+  {
+   "data": "2025-12-31",
+   "casa": "Safra",
+   "preco_alvo": 25.0,
+   "recomendacao": null,
+   "data_aproximada": true,
+   "fontes": [
+    {
+     "url": "https://www.seudinheiro.com/2025/empresas/2026-sera-o-ano-do-banco-do-brasil-bbas3-safra-diz-o-que-esperar-e-o-que-fazer-com-as-acoes-lvgb/",
+     "titulo": "Seu Dinheiro: 2026 será o ano do BB, diz Safra",
+     "data": null
+    }
+   ]
+  },
+  {
+   "data": "2026-03-31",
+   "casa": "Itaú BBA",
+   "preco_alvo": 21.0,
+   "recomendacao": "neutra (market perform)",
+   "data_aproximada": true,
+   "fontes": [
+    {
+     "url": "https://investidor10.com.br/noticias/bba-corta-lucro-do-banco-do-brasil-bbas3-para-r-21-bi-e-aponta-risco-de-queda-119351/",
+     "titulo": "Investidor10: BBA corta lucro do BB e aponta risco de queda",
+     "data": null
+    },
+    {
+     "url": "https://www.infomoney.com.br/?p=3259018",
+     "titulo": "InfoMoney: BBA corta projeções de lucro do BB",
+     "data": null
+    }
+   ]
+  },
+  {
+   "data": "2026-07-31",
+   "casa": "Genial",
+   "preco_alvo": 23.3,
+   "recomendacao": "manter",
+   "data_aproximada": true,
+   "fontes": [
+    {
+     "url": "https://analisa.genialinvestimentos.com.br/acoes/banco-do-brasil/banco-do-brasil-bbas3-previa-2t26lucro-melhora-mas-agro-ainda-impede-a-virada",
+     "titulo": "Genial: prévia do 2º tri de 2026",
+     "data": null
+    }
+   ]
+  },
+  {
+   "data": "2026-09-30",
+   "casa": "XP",
+   "preco_alvo": 21.0,
+   "recomendacao": "neutra",
+   "data_aproximada": true,
+   "fontes": [
+    {
+     "url": "https://www.infomoney.com.br/mercados/banco-do-brasil-xp-ve-assimetria-negativa-para-tese-e-reduz-preco-alvo-das-acoes/",
+     "titulo": "InfoMoney: XP vê assimetria negativa e reduz o preço-alvo do BB",
+     "data": null
+    }
+   ]
+  }
+ ]
+}
