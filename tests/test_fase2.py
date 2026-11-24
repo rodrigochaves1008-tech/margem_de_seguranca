@@ -38,6 +38,18 @@ def test_divisoes_no_tempo_nao_partem_uma_data():
 def test_escala_das_acoes_em_milhares():
     c = pd.DataFrame({"dt_refer": pd.to_datetime(["2021-03-31"]), "divulgacao": pd.to_datetime(["2021-05-01"]),
                       "acoes_circulacao": [1_458_191.0], "acoes_total": [1_458_191.0]})
-    fre = pd.DataFrame({"dt_refer": pd.to_datetime(["2021-01-01"]), "acoes_total": [1_458_191_000.0]})
+    fre = pd.DataFrame({"dt_refer": pd.to_datetime(["2021-01-01"]), "divulgacao": pd.to_datetime(["2021-04-30"]),
+                        "acoes_total": [1_458_191_000.0]})
     out = fundamentos._corrigir_escala(c, fre)
     assert out["acoes_total"].iloc[0] == 1_458_191_000.0
+
+
+def test_escala_das_acoes_so_com_fre_ja_entregue():
+    """Um FRE entregue depois do ITR não pode mudar a escala do ITR (point-in-time)."""
+    c = pd.DataFrame({"dt_refer": pd.to_datetime(["2021-03-31"]), "divulgacao": pd.to_datetime(["2021-05-01"]),
+                      "acoes_circulacao": [1_458_191.0], "acoes_total": [1_458_191.0]})
+    fre = pd.DataFrame({"dt_refer": pd.to_datetime(["2020-01-01", "2021-01-01"]),
+                        "divulgacao": pd.to_datetime(["2020-05-29", "2021-06-30"]),
+                        "acoes_total": [1_458_191_000.0, 7.0]})
+    assert fundamentos._corrigir_escala(c, fre)["acoes_total"].iloc[0] == 1_458_191_000.0
+    assert fundamentos._corrigir_escala(c, fre.iloc[[1]])["acoes_total"].iloc[0] == 1_458_191.0

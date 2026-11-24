@@ -224,17 +224,23 @@ def _limpar_comparativos(df: pd.DataFrame, metrica: str) -> pd.DataFrame:
 
 def _corrigir_escala(c: pd.DataFrame, fre: pd.DataFrame | None) -> pd.DataFrame:
     """Algumas empresas informam a composição do capital do ITR/DFP em milhares de ações. Compara com
-    o total de ações do FRE mais próximo no tempo e multiplica por mil quando a razão é ~1.000."""
+    o total de ações do FRE mais próximo no tempo, entre os já entregues até a divulgação do documento
+    (point-in-time: um FRE entregue depois não pode mudar um número antigo), e multiplica por mil quando a
+    razão é ~1.000."""
     if fre is None or fre.empty:
         return c
     f = fre.dropna(subset=["acoes_total"])
-    f = f[f["acoes_total"] > 0]
+    f = f[f["acoes_total"] > 0].sort_values(["dt_refer", "divulgacao"], kind="stable")
     if f.empty:
         return c
     c = c.copy()
     for i, row in c.iterrows():
-        k = (f["dt_refer"] - row["dt_refer"]).abs().idxmin()
-        razao = float(f.at[k, "acoes_total"]) / float(row["acoes_total"]) if row["acoes_total"] else np.nan
+        g = f[f["divulgacao"] <= row["divulgacao"]]
+        if g.empty or not row["acoes_total"]:
+            continue
+        dist = (g["dt_refer"] - row["dt_refer"]).abs()
+        k = dist[dist == dist.min()].index[-1]
+        razao = float(g.at[k, "acoes_total"]) / float(row["acoes_total"])
         if np.isfinite(razao) and 300 <= razao <= 3000:
             c.at[i, "acoes_total"] = row["acoes_total"] * 1000.0
             c.at[i, "acoes_circulacao"] = row["acoes_circulacao"] * 1000.0
