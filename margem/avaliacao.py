@@ -102,7 +102,10 @@ def avaliar(mensal, hoje: dict, linha_hoje: pd.Series, base: pd.DataFrame, preco
     res = {"meses_fora_amostra": int(len(jan)), "inicio_fora_amostra": jan.index.min() if len(jan) else None}
     res["erro_tipico"] = erro_tipico(jan) if len(jan) else np.nan
     res["cobertura_faixa"], res["meses_com_faixa"] = cobertura_faixa(jan) if len(jan) else (np.nan, 0)
-    res["contra_passeio"] = razoes_contra_passeio(mensal, preco_mensal, desd, ate, int(c["janela_comparacao_meses"])) if len(mensal) else {}
+    lim = limites_contra_passeio(cfg)
+    res["limites"] = lim
+    res["contra_passeio"] = (razoes_contra_passeio(mensal, preco_mensal, desd, ate, int(c["janela_comparacao_meses"]),
+                                                   horizontes=tuple(sorted(lim))) if len(mensal) else {})
     motivos = []
     V, preco = hoje.get("V", np.nan), hoje.get("preco", np.nan)
     if not np.isfinite(V):
@@ -112,14 +115,11 @@ def avaliar(mensal, hoje: dict, linha_hoje: pd.Series, base: pd.DataFrame, preco
                        f"(mínimo {c['meses_fora_amostra_min']})")
     if not np.isfinite(hoje.get("q10", np.nan)):
         motivos.append(f"menos de {c['meses_faixa_min']} meses para calcular a faixa de 80%")
-    r12 = res["contra_passeio"].get(12, {}).get("razao", np.nan)
-    r6 = res["contra_passeio"].get(6, {}).get("razao", np.nan)
-    if not (np.isfinite(r12) and r12 <= float(c["razao_mape_12m_max"])):
-        motivos.append(f"perde para o passeio aleatório no preço 12 meses depois (erro {fmt_razao(r12)} do passeio; "
-                       f"limite {fmt_razao(c['razao_mape_12m_max'])})")
-    if not (np.isfinite(r6) and r6 <= float(c["razao_mape_6m_max"])):
-        motivos.append(f"perde para o passeio aleatório no preço 6 meses depois (erro {fmt_razao(r6)} do passeio; "
-                       f"limite {fmt_razao(c['razao_mape_6m_max'])})")
+    for h in sorted(lim, reverse=True):
+        rz = res["contra_passeio"].get(h, {}).get("razao", np.nan)
+        if not (np.isfinite(rz) and rz <= lim[h]):
+            motivos.append(f"perde para o passeio aleatório no preço {h} meses depois (erro {fmt_razao(rz)} do passeio; "
+                           f"limite {fmt_razao(lim[h])})")
     cob = res["cobertura_faixa"]
     if not (np.isfinite(cob) and float(c["cobertura_faixa_min"]) <= cob <= float(c["cobertura_faixa_max"])):
         motivos.append(f"o preço ficou dentro da faixa de 80% em {fmt_pct(cob)} dos meses "
@@ -149,6 +149,14 @@ def avaliar(mensal, hoje: dict, linha_hoje: pd.Series, base: pd.DataFrame, preco
     res["motivos"] = motivos
     res["confiavel"] = not motivos
     return res
+
+
+def limites_contra_passeio(cfg: dict) -> dict[int, float]:
+    """Horizonte (meses) → razão máxima de MAPE contra o passeio aleatório (configuração)."""
+    c = cfg["estimativa_confiavel"]
+    if "limites_contra_passeio" in c:
+        return {int(k): float(v) for k, v in c["limites_contra_passeio"].items()}
+    return {12: float(c.get("razao_mape_12m_max", 1.0)), 6: float(c.get("razao_mape_6m_max", 1.1))}
 
 
 def fmt_pct(v) -> str:

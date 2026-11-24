@@ -93,7 +93,10 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
     val = valuation.calcular(base, hoje, None, cfg, setor.get("contabilidade", "geral"), bases_pares)
     anos = int(cfg["modelo"]["anos_fora_amostra"])
     jan = avaliacao.janela_backtest(mensal, hoje, anos) if len(mensal) else mensal
-    bt = avaliacao.tabela_backtest(jan, preco_mensal, desd, hoje, setor["alvos"]) if len(jan) else pd.DataFrame()
+    horizontes_bt = tuple(sorted(set(int(h) for h in cfg["modelo"]["escolha"]["horizontes_meses"])
+                                 | set(avaliacao.limites_contra_passeio(cfg))))
+    bt = (avaliacao.tabela_backtest(jan, preco_mensal, desd, hoje, setor["alvos"], horizontes=horizontes_bt)
+          if len(jan) else pd.DataFrame())
     sinais = avaliacao.margem_como_sinal(jan, base, dados.precos.diario, desd, dados.precos.proventos, cfg) if len(jan) else []
     progresso(f"{ticker}: ranking dos preditores de 1, 2 e 3 anos atrás")
     historia_preditores = _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, bases_pares, ticker, imp)
@@ -271,6 +274,10 @@ def _salvar_ultima_rodada(ticker, analise, res, dados, imp) -> None:
         imp.drop(columns=["explicacao"], errors="ignore").to_parquet(ur / "preditores.parquet", index=False)
     (ur / "eventos.json").write_text(json.dumps(graficos.eventos_de_preco(dados.precos.desdobramentos),
                                                 ensure_ascii=False), encoding="utf-8")
+    h = res.hoje
+    (ur / "hoje_candidatos.json").write_text(json.dumps(_json_ok({
+        "data": h.get("data"), "retreino": h.get("retreino"), "escolhido": h.get("escolhido"),
+        "preco": h.get("preco"), "V_candidatos": h.get("V_candidatos", {})}), ensure_ascii=False), encoding="utf-8")
     vars_ = [{"data": v["data"].strftime("%Y-%m-%d"), "alvo": v["alvo"], "variaveis": v["variaveis"]}
              for v in res.variaveis_por_retreino]
     p = ur / "variaveis.json"
@@ -349,8 +356,10 @@ def _contexto_relatorio(ticker, info, setor, a, aval, imp, val, bt, jan, res, ba
     faixa, classe = ranking_dos_ativos.faixa_da_margem(margem) if confiavel else ("—", "neu")
     et = aval.get("erro_tipico", np.nan)
     cp = aval.get("contra_passeio", {})
-    r12 = cp.get(12, {}).get("razao", np.nan)
-    r6 = cp.get(6, {}).get("razao", np.nan)
+    lim = aval.get("limites") or avaliacao.limites_contra_passeio(cfg)
+    h_longo, h_curto = max(lim), min(lim)
+    r12 = cp.get(h_longo, {}).get("razao", np.nan)
+    r6 = cp.get(h_curto, {}).get("razao", np.nan)
     modelo, alvo = (h.get("escolhido") or "|").split("|")
     nome_modelo = (C.NOMES_MODELOS.get(modelo, modelo) if alvo in ("todos", "")
                    else f"{C.NOMES_MODELOS.get(modelo, modelo)}, alvo {C.NOMES_ALVOS.get(alvo, alvo)}")
@@ -371,8 +380,8 @@ def _contexto_relatorio(ticker, info, setor, a, aval, imp, val, bt, jan, res, ba
         resumo.append(f"O principal preditor é {p0['nome']} ({formatos.pct(p0['importancia'], 0)} da importância), "
                       f"que hoje empurra o preço justo {p0['direcao']}.")
     if np.isfinite(r12):
-        resumo.append(f"No backtest, o erro contra o preço 12 meses depois foi {formatos.pct(r12, 0)} do erro do passeio "
-                      f"aleatório nos últimos {cp[12]['n']} meses ({'o modelo ganhou' if r12 < 1 else 'o passeio aleatório ganhou'}).")
+        resumo.append(f"No backtest, o erro contra o preço {h_longo} meses depois foi {formatos.pct(r12, 0)} do erro do passeio "
+                      f"aleatório nos últimos {cp[h_longo]['n']} meses ({'o modelo ganhou' if r12 < 1 else 'o passeio aleatório ganhou'}).")
     resumo.append(f"Posição: {pos}.")
 
     texto_margem = []
@@ -429,16 +438,17 @@ def _contexto_relatorio(ticker, info, setor, a, aval, imp, val, bt, jan, res, ba
         esc = bt.iloc[0]
         rw = bt.iloc[1]
         outros = bt.iloc[2:]
-        melhor = outros.sort_values("mape_12m").iloc[0] if len(outros) else None
-        venceu12 = "o modelo" if esc["mape_12m"] < rw["mape_12m"] else "o passeio aleatório"
-        venceu6 = "o modelo" if esc["mape_6m"] < rw["mape_6m"] else "o passeio aleatório"
-        texto_bt = (f"Nos {int(esc['n_12m'])} meses fora da amostra com preço 12 meses depois já conhecido, a escolha do "
-                    f"walk-forward errou em média {formatos.pct(esc['mape_12m'], 1)}, contra {formatos.pct(rw['mape_12m'], 1)} "
-                    f"do passeio aleatório: ganhou {venceu12}. Em 6 meses: {formatos.pct(esc['mape_6m'], 1)} contra "
-                    f"{formatos.pct(rw['mape_6m'], 1)} ({venceu6}).")
+        L, Cc = f"mape_{h_longo}m", f"mape_{h_curto}m"
+        melhor = outros.sort_values(L).iloc[0] if len(outros) else None
+        venceu_l = "o modelo" if esc[L] < rw[L] else "o passeio aleatório"
+        venceu_c = "o modelo" if esc[Cc] < rw[Cc] else "o passeio aleatório"
+        texto_bt = (f"Nos {int(esc[f'n_{h_longo}m'])} meses fora da amostra com preço {h_longo} meses depois já conhecido, a "
+                    f"escolha do walk-forward errou em média {formatos.pct(esc[L], 1)}, contra {formatos.pct(rw[L], 1)} "
+                    f"do passeio aleatório: ganhou {venceu_l}. Em {h_curto} meses: {formatos.pct(esc[Cc], 1)} contra "
+                    f"{formatos.pct(rw[Cc], 1)} ({venceu_c}).")
         if melhor is not None:
-            texto_bt += (f" Olhando o período todo depois (sem uso na escolha), o candidato com menor erro em 12 meses foi "
-                         f"{melhor['modelo']} ({formatos.pct(melhor['mape_12m'], 1)}).")
+            texto_bt += (f" Olhando o período todo depois (sem uso na escolha), o candidato com menor erro em {h_longo} meses "
+                         f"foi {melhor['modelo']} ({formatos.pct(melhor[L], 1)}).")
     else:
         texto_bt = "Sem meses fora da amostra suficientes para o backtest."
     cont = res.escolhas["escolhido"].value_counts() if len(res.escolhas) else pd.Series(dtype=int)
@@ -499,6 +509,8 @@ def _contexto_relatorio(ticker, info, setor, a, aval, imp, val, bt, jan, res, ba
         "janela_backtest": (f"{formatos.mes(jan.index.min())} a {formatos.mes(jan.index.max())}" if len(jan) else "—"),
         "cobertura": aval.get("cobertura_faixa"), "meses_com_faixa": aval.get("meses_com_faixa"),
         "janela_comparacao": cfg["estimativa_confiavel"]["janela_comparacao_meses"], "razao12": r12, "razao6": r6,
+        "h_longo": h_longo, "h_curto": h_curto,
+        "bt_horizontes": sorted({int(c.split("_")[1][:-1]) for c in (bt.columns if len(bt) else []) if c.startswith("mape_")}),
         "n_retreinos": len(res.escolhas), "contagem_escolhas": contagem,
         "valuation": val_rows, "texto_valuation": texto_val,
         "rotulo_dif": "Diferença para o preço justo do modelo" if confiavel else "Diferença para o preço atual",

@@ -37,7 +37,11 @@ python -m margem ranking-dos-ativos
 python -m margem refazer desatualizados
 python -m margem tirar BBAS3
 python -m margem teste-vazamento BBAS3
+python -m margem teste-criterios ITUB4 EGIE3 ROMI3
 ```
+
+`teste-criterios` compara, sem treinar de novo, a regra de escolha e o critério de estimativa
+confiável atuais com uma alternativa (escolha e comparação com o passeio aleatório em 12 e 24 meses).
 
 ## Setores e pares
 

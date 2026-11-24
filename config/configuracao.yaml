@@ -20,8 +20,9 @@ estimativa_confiavel:
   meses_fora_amostra_min: 60        # pelo menos 5 anos de estimativas walk-forward
   meses_faixa_min: 24               # sem faixa de 80% com menos que isso
   janela_comparacao_meses: 60       # últimos meses usados na comparação com o passeio aleatório
-  razao_mape_12m_max: 1.00          # MAPE do modelo ÷ MAPE do passeio aleatório, preço 12 meses depois
-  razao_mape_6m_max: 1.10           # idem, 6 meses depois
+  # Não perder para o passeio aleatório: horizonte em meses → razão máxima entre o MAPE do modelo e o
+  # MAPE do passeio aleatório contra o preço desse horizonte depois.
+  limites_contra_passeio: {12: 1.00, 6: 1.10}
   cobertura_faixa_min: 0.70         # % dos meses com o preço dentro da faixa de 80%
   cobertura_faixa_max: 0.90
   erro_tipico_max: 0.35

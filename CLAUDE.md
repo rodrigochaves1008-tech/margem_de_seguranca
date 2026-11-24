@@ -36,9 +36,18 @@ Atualize esta seção ao fim de cada fase.
 - Diagnóstico olhando o período todo (só informativo, não usado em escolha): a média simples de todos
   os modelos erra menos que a escolha do walk-forward no BBAS3 e na WEGE3 (não na CMIG4); o painel
   ajudou na CMIG4 e piorou na WEGE3; a 24 meses, alguns candidatos batem o passeio no BBAS3 e na CMIG4.
-- Decisões pendentes com o usuário: manter o critério (horizontes de 6 e 12 meses) ou testar outro
-  (por exemplo, 12 e 24 meses) primeiro em ativos ainda não analisados, para não ajustar o critério
-  aos três já vistos; seguir para a Fase 3.
+- 24/11/2026: o usuário pediu o teste dos critérios antes da Fase 3. Variantes definidas antes de
+  rodar, em `margem/teste_criterios.py`: A (atual: escolha por 6 e 12 meses; erro ≤ 100% do passeio
+  em 12 meses e ≤ 110% em 6) e B (escolha por 12 e 24 meses; ≤ 100% em 24 e ≤ 110% em 12). Ativos
+  de teste, nunca analisados antes: ITUB4, BBDC4, EGIE3, TAEE11, ROMI3, RAPT4 (rodados numa pasta
+  de saída separada, fora do ranking dos ativos do usuário). Comando: `ms teste-criterios`.
+  Os horizontes do critério agora vêm de `limites_contra_passeio` em `config/configuracao.yaml`.
+- Resultado do teste (fora da amostra): A 0 de 6 e B 0 de 6 com estimativa confiável. Erro do modelo
+  ÷ erro do passeio — A (12 m / 6 m): ITUB4 118/120%, BBDC4 119/132%, EGIE3 140/118%, TAEE11 102/126%,
+  ROMI3 113/149%, RAPT4 103/156%; B (24 m / 12 m): ITUB4 153/115%, BBDC4 141/157%, EGIE3 146/137%,
+  TAEE11 113/118%, ROMI3 126/104%, RAPT4 136/127%. A 24 meses foi pior que a 12 em todos: o indício
+  visto no BBAS3 e na CMIG4 não se confirmou. A reconstrução da variante A bateu com a produção nos 6.
+  Recomendação feita ao usuário: manter o critério A e seguir para a Fase 3; aguardando resposta.
 - Não apresente o plano de novo. Não mude o desenho do modelo olhando o backtest do período
   todo sem dizer isso ao usuário (seria escolher com o período todo).
 
