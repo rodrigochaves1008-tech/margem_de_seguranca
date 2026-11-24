@@ -76,7 +76,21 @@ Atualize esta seção ao fim de cada fase.
   volatilidade. Pesquisa de 24/11/2026: 8 mudanças no BBAS3, 6 na WEGE3 e 7 na CMIG4. Rodadas seguintes:
   0,7 a 1,0 min por ativo. Teste de vazamento não refeito, porque a Fase 3 não mexe nas estimativas (o da
   versão 1.2.0, feito no mesmo dia, passou nos três).
-- Aguardando o usuário: aprovar a Fase 3 e seguir para o aceite.
+- 24/11/2026: o usuário aprovou a Fase 3 e pediu o aceite. Resultado:
+  - lote BBAS3, WEGE3, CMIG4 num único pedido, 0,8 a 1,0 min por ativo: os três sem estimativa confiável,
+    na lista à parte da página do ranking dos ativos. Clicar em cada um abre a tela com os gráficos; o do
+    preço justo dá lugar ao motivo;
+  - ranking dos ativos depois do lote: nenhum modelo treinado, histórico e preços justos iguais;
+  - prazo de 30 dias mudado para 0: os três desatualizados. BBAS3 rodado de novo: aparece uma vez;
+  - demonstração com critério relaxado, em pasta separada e com aviso em todas as páginas: preço justo
+    igual no relatório, na página do ranking dos ativos, no último ponto cheio da tela e no gráfico do
+    relatório (BBAS3 R$ 17,00, WEGE3 R$ 48,63, CMIG4 R$ 11,61);
+  - teste de vazamento: na primeira passada, a CMIG4 falhou em 11/2024, com a estimativa 1.000 vezes
+    maior. A correção das ações informadas em milhares usava o FRE mais próximo pela data de referência,
+    mesmo entregue depois. Corrigido: só contam FRE já entregues. Nos dados reais as ações não mudam e as
+    estimativas guardadas seguem valendo. Refeito, passou nos três (9 meses, diferença 0,000000).
+- Aguardando o usuário: juntar o branch `fase-3` na `main` e instalar no PC (rodar de novo o
+  `instalar.ps1`, que instala o `ruptures` e a skill nova).
 - Não apresente o plano de novo. Não mude o desenho do modelo olhando o backtest do período
   todo sem dizer isso ao usuário (seria escolher com o período todo).
 
@@ -87,6 +101,7 @@ Notas técnicas aprendidas na Fase 1:
 - CVM: o BB só tem ITR consolidado a partir de 2022 → usar as individuais; composição do capital
   só a partir de 2020 → antes, o FRE; nos documentos de 2025 os comparativos vêm zerados.
 - pandas 3 e scikit-learn 1.9: `LassoCV(alphas=30)` (não `n_alphas`).
+- Escala das ações (FRE × ITR/DFP): comparar só com FRE já entregue até a divulgação do documento.
 - Código no repositório privado `rodrigochaves1008-tech/margem_de_seguranca` (GitHub). No PC,
   `Documentos\margem_de_seguranca` é um clone dele.
 - O código pode ser escrito numa sessão na nuvem ou no PC, sempre pelo repositório. Os testes
