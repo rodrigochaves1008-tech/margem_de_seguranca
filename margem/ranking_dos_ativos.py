@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from . import caminhos, config, formatos, graficos, historico
+from . import margem_historica
 from . import precos as P
 from .fontes import cvm, yahoo
 from .saida import paginas
@@ -238,32 +239,52 @@ def posicao_texto(t: str, resultado: dict, fora: bool) -> str:
     return "sem estimativa confiável (lista à parte)"
 
 
+def _exibicao() -> dict:
+    return config.cfg().get("exibicao", {}) or {}
+
+
+def _mostrar() -> bool:
+    return bool(_exibicao().get("mostrar_sem_estimativa_confiavel", False))
+
+
+def _ranking_cfg() -> dict:
+    e = _exibicao()
+    return {"anos": int(e.get("ranking_margem_anos", 10)), "top": int(e.get("ranking_margem_top", 10))}
+
+
 def escrever_tela_ativo(t: str, d: dict, reg: dict | None, resultado: dict, fora: bool) -> None:
     a = d["ur"]["analise"]
     ate = d["diario"]["data"].max()
     dg = graficos.montar(d["diario"], d["desd"], d["prov"], d["ur"]["walkforward"], a, historico.do_ativo(t),
-                         ate, tracejado=True, eventos=d["ur"]["eventos"])
+                         ate, tracejado=True, eventos=d["ur"]["eventos"],
+                         mostrar_sem_confiavel=_mostrar())
     preco, data_preco = P.preco_em(d["diario"], ate)
     ctx = {
         "ticker": t, "nome": a.get("nome", t), "setor_nome": a.get("setor_nome", a["setor"]),
         "preco": preco, "data_preco": data_preco, "data_analise": pd.Timestamp(str(a["data_analise"])[:10]),
-        "confiavel": bool(a.get("estimativa")), "motivos": a.get("motivos") or [a.get("motivo_sem_estimativa") or ""],
+        "confiavel": bool(a.get("estimativa")), "mostrar_justo": bool(dg.get("mostrar_justo")), "motivos": a.get("motivos") or [a.get("motivo_sem_estimativa") or ""],
         "link_relatorio": "../" + a["relatorio"] if a.get("relatorio") else "#",
         "posicao_texto": posicao_texto(t, resultado, fora),
         "marcas": (reg or {}).get("marcas", []) if not fora else [{"texto": "fora do ranking dos ativos", "alerta": True, "dica": ""}],
         "legenda": legenda(a, dg),
         "marcas_grafico": dg.get("eventos", []),
     }
-    if a.get("estimativa"):
-        V, ajustado = graficos.ajuste_pos_analise(a["preco_justo"], str(a["data_analise"])[:10], ate, d["diario"], d["desd"], d["prov"])
-        r = V / a["preco_justo"]
+    confiavel = bool(a.get("estimativa"))
+    V0 = a.get("preco_justo") if confiavel else (a.get("preco_justo_modelo") if dg.get("mostrar_justo") else None)
+    p10_0 = a.get("p10") if confiavel else a.get("p10_modelo")
+    p90_0 = a.get("p90") if confiavel else a.get("p90_modelo")
+    if V0:
+        V, ajustado = graficos.ajuste_pos_analise(V0, str(a["data_analise"])[:10], ate, d["diario"], d["desd"], d["prov"])
+        r = V / V0
         margem = (V - preco) / V
         faixa, classe = faixa_da_margem(margem)
         et = a.get("erro_tipico") or np.nan
-        ctx.update({"V": V, "P10": a["p10"] * r if a.get("p10") else None, "P90": a["p90"] * r if a.get("p90") else None,
+        ctx.update({"V": V, "P10": p10_0 * r if p10_0 else None, "P90": p90_0 * r if p90_0 else None,
                     "ajustado": ajustado, "margem": margem, "margem_rs": V - preco, "faixa_margem": faixa,
                     "classe_margem": classe, "erro_tipico": et, "supera": abs(margem) > et,
                     "top5": a.get("top5", [])})
+        ctx["ranking_margem"] = margem_historica.ranking(d["ur"]["walkforward"], d["desd"], V, preco, ate, **_ranking_cfg())
+        ctx["texto_ranking_margem"] = margem_historica.texto(ctx["ranking_margem"])
     paginas.escrever_tela(ctx, dg)
 
 
@@ -276,7 +297,9 @@ def legenda(a: dict, dg: dict) -> str:
     if dg.get("eventos"):
         partes.append("Linhas verticais: pontilhadas para eventos (desdobramentos, grupamentos e mudanças de regras) e "
                       "tracejadas para quebras estruturais detectadas (diagnóstico; detalhes no relatório).")
-    if a.get("estimativa"):
+    if not a.get("estimativa") and dg.get("mostrar_justo"):
+        partes.append("Sem estimativa confiável pelo critério: o preço justo do gráfico é o do modelo, só para estudo.")
+    if a.get("estimativa") or dg.get("mostrar_justo"):
         partes.append(
             "Preço justo: estimativas walk-forward simuladas com a versão do modelo da análise mais recente "
             f"({a.get('versao_modelo')}), cada uma só com os dados divulgados até a data; não são análises feitas na época. "

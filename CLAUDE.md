@@ -117,6 +117,17 @@ Atualize esta seção ao fim de cada fase.
   relatórios e telas mantidos). Se a pasta `saida` sumir, repetir. Rodar o ativo de novo o traz de volta.
 - 24/11/2026: a pedido do usuário, saíram a linha dos preços-alvo dos analistas e o estudo das épocas de
   margem alta (decisões 8 e 9 retiradas). Código 0.6.0; o modelo segue 1.2.0.
+- 24/11/2026: decisões 10 e 11 feitas (código 0.7.0; o modelo segue 1.2.0).
+- 24/11/2026, pedido em aberto: modelo confiável, que passe em todos os critérios, usando PCA para ver quais
+  preditores são melhores e se é preciso eliminar ou reciclar preditores. Pausa pela regra dos créditos às
+  ~20:55; volta agendada para 22:53 (horário de Brasília). Plano ao voltar, só no BBAS3, com as regras
+  definidas antes de rodar e sem escolher nada olhando o período todo:
+  1. diagnóstico de PCA dos preditores em cada retreino, só com dados até a data (cargas, grupos
+     redundantes, preditores isolados), cruzado com a importância (SHAP e permutação) ao longo do tempo,
+     para dizer quais manter, eliminar ou juntar num fator;
+  2. candidatos novos no walk-forward com os componentes principais como entrada (regressão e rede sobre
+     os componentes), disputando a escolha com os demais;
+  3. nova versão do modelo, walk-forward completo, teste de vazamento e o resultado honesto: passou ou não.
 - Pendente no PC: rodar de novo o `instalar.ps1`, que instala o `ruptures` e a skill nova.
 - Não apresente o plano de novo. Não mude o desenho do modelo olhando o backtest do período
   todo sem dizer isso ao usuário (seria escolher com o período todo).
@@ -163,6 +174,13 @@ Notas técnicas aprendidas na Fase 1:
 8. e 9. Perspectivas dos analistas e estudo das épocas de margem alta (24/11/2026): pedidos e retirados
    pelo usuário no mesmo dia ("deixar sem essa etapa"). A ferramenta não tem a linha dos preços-alvo nem o
    estudo. O código ficou no histórico do git (commit 113e8cc).
+
+10. Mostrar o modelo mesmo sem estimativa confiável (24/11/2026): a tela e o relatório mostram o preço justo,
+   a faixa, a margem e o gráfico do preço justo do modelo, com aviso em vermelho e os motivos
+   (`exibicao.mostrar_sem_estimativa_confiavel`). O ranking dos ativos continua pelo critério estrito.
+   Substitui, na tela e no relatório, o "mostrar o motivo no lugar deste gráfico" da especificação.
+11. Ranking da margem de segurança dos últimos 10 anos (24/11/2026), com a posição e o percentil da margem
+   de hoje, para ver se ela está perto do topo: resumo na tela e tabela no relatório (seção 2).
 
 Os itens 2 a 4 são as propostas do plano, adotadas sem objeção do usuário. Ele pode mudá-las.
 

@@ -10,7 +10,7 @@ from datetime import date, datetime
 import numpy as np
 import pandas as pd
 
-from . import (AVISO, avaliacao, caminhos, config, estruturais, formatos, graficos, historico, macro, painel,
+from . import (AVISO, avaliacao, caminhos, config, estruturais, formatos, graficos, historico, macro, margem_historica, painel,
                preditores, ranking_dos_ativos, valuation)
 from .fontes import cvm as fonte_cvm
 from .modelo import candidatos as C
@@ -124,7 +124,8 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
     ctx.update(_contexto_estruturais(estr))
     dg = graficos.montar(dados.precos.diario, desd, dados.precos.proventos, mensal, analise,
                          historico.do_ativo(ticker), pd.Timestamp(h["data_preco"]), tracejado=False,
-                         eventos=graficos.eventos_de_preco(desd) + estr["marcas"])
+                         eventos=graficos.eventos_de_preco(desd) + estr["marcas"],
+                         mostrar_sem_confiavel=bool(cfg.get("exibicao", {}).get("mostrar_sem_estimativa_confiavel")))
     ctx["marcas_grafico"] = dg.get("eventos", [])
     paginas.escrever_relatorio(pasta_rel, ctx, dg)
     _copiar_dados(pasta_rel, base, res, dados, imp, bt, val, foto, analise, estr)
@@ -369,8 +370,11 @@ def _contexto_relatorio(ticker, info, setor, a, aval, imp, val, bt, jan, res, ba
     confiavel = a["estimativa"]
     V = h.get("V", np.nan)
     preco = h.get("preco", np.nan)
-    margem = (V - preco) / V if confiavel and V else np.nan
-    faixa, classe = ranking_dos_ativos.faixa_da_margem(margem) if confiavel else ("—", "neu")
+    # Decisão 10 do usuário: os números do modelo aparecem mesmo sem estimativa confiável, com aviso.
+    mostrar = bool(confiavel or (cfg.get("exibicao", {}).get("mostrar_sem_estimativa_confiavel")
+                                 and np.isfinite(V) and V > 0))
+    margem = (V - preco) / V if mostrar and V else np.nan
+    faixa, classe = ranking_dos_ativos.faixa_da_margem(margem) if mostrar else ("—", "neu")
     et = aval.get("erro_tipico", np.nan)
     cp = aval.get("contra_passeio", {})
     lim = aval.get("limites") or avaliacao.limites_contra_passeio(cfg)
@@ -392,6 +396,9 @@ def _contexto_relatorio(ticker, info, setor, a, aval, imp, val, bt, jan, res, ba
                       + f" ({formatos.pct(et, 1)}).")
     else:
         resumo.append(f"Não há estimativa confiável para {ticker} nesta data: " + "; ".join(aval["motivos"]) + ".")
+        if mostrar:
+            resumo.append(f"Só para estudo, o modelo estima o preço justo em {formatos.moeda(V)}, margem de "
+                          f"{formatos.pct(margem, 1, True)} sobre o preço de {formatos.moeda(preco)}.")
     if imp is not None and len(imp):
         p0 = imp.iloc[0]
         resumo.append(f"O principal preditor é {p0['nome']} ({formatos.pct(p0['importancia'], 0)} da importância), "
@@ -402,7 +409,7 @@ def _contexto_relatorio(ticker, info, setor, a, aval, imp, val, bt, jan, res, ba
     resumo.append(f"Posição: {pos}.")
 
     texto_margem = []
-    if confiavel:
+    if mostrar:
         sinal = "abaixo" if margem > 0 else "acima"
         texto_margem.append(
             f"O preço está {formatos.pct(abs(margem), 1)} {sinal} do preço justo (margem = (V − P) ÷ V); para chegar ao preço "
@@ -411,8 +418,11 @@ def _contexto_relatorio(ticker, info, setor, a, aval, imp, val, bt, jan, res, ba
                else "A diferença é menor que o erro típico do modelo: fica dentro da margem de erro."))
     texto_margem.append(f"Modelo escolhido pelo walk-forward na data: {nome_modelo}.")
     if not confiavel:
-        texto_margem.append("Sem estimativa confiável, o número calculado pelo modelo não é mostrado; ele fica só na cópia "
-                            "dos dados deste relatório (dados/analise.json), para auditoria.")
+        texto_margem.append(
+            "Sem estimativa confiável pelo critério: os números do modelo aparecem só para estudo; no backtest, o modelo "
+            "errou mais que o passeio aleatório (supor que o preço fica onde está)." if mostrar else
+            "Sem estimativa confiável, o número calculado pelo modelo não é mostrado; ele fica só na cópia dos dados deste "
+            "relatório (dados/analise.json), para auditoria.")
 
     # Preditores
     prds, explicacoes, concordancia, mudanca = [], [], np.nan, ""
@@ -501,15 +511,21 @@ def _contexto_relatorio(ticker, info, setor, a, aval, imp, val, bt, jan, res, ba
     cvm_cob = {"serie": "Balanços (DFP e ITR)", "familia": "empresa", "fonte": "CVM dados abertos",
                "codigo": info.get("cnpj"), "inicio": docs["dt_refer"].min(), "fim": docs["dt_refer"].max(),
                "defasagem_txt": "data de entrega à CVM", "revisada": False, "uso": "preditor"}
+    e = cfg.get("exibicao", {}) or {}
+    rk = (margem_historica.ranking(res.mensal, dados.precos.desdobramentos, V, preco, h.get("data_preco"),
+                                   int(e.get("ranking_margem_anos", 10)), int(e.get("ranking_margem_top", 10)))
+          if mostrar else {"ok": False})
     return {
+        "mostrar_justo": mostrar, "ranking_margem": rk, "texto_ranking_margem": margem_historica.texto(rk),
+        "nota_ranking_margem": margem_historica.NOTA,
         "ticker": ticker, "nome": info.get("nome"), "setor_nome": setor.get("nome"), "data_analise": agora,
         "data_hora": formatos.data_hora(agora), "data_preco": h.get("data_preco"), "preco": preco,
         "versao_modelo": a["versao_modelo"], "confiavel": confiavel, "motivos": aval["motivos"],
-        "V": V, "P10": h.get("P10"), "P90": h.get("P90"), "margem": margem, "margem_rs": V - preco if confiavel else np.nan,
-        "faixa_margem": faixa, "classe_margem": classe, "erro_tipico": et, "supera": confiavel and abs(margem) > et,
-        "potencial": V / preco - 1 if confiavel else np.nan,
+        "V": V, "P10": h.get("P10"), "P90": h.get("P90"), "margem": margem, "margem_rs": V - preco if mostrar else np.nan,
+        "faixa_margem": faixa, "classe_margem": classe, "erro_tipico": et, "supera": mostrar and abs(margem) > et,
+        "potencial": V / preco - 1 if mostrar else np.nan,
         "resumo": resumo[:5], "texto_margem": texto_margem,
-        "legenda": ranking_dos_ativos.legenda(a, {"eventos": True, "desde": dados.precos.diario["data"].max() - pd.DateOffset(years=10)
+        "legenda": ranking_dos_ativos.legenda(a, {"eventos": True, "mostrar_justo": mostrar, "desde": dados.precos.diario["data"].max() - pd.DateOffset(years=10)
                                                    if dados.precos.diario["data"].min() < dados.precos.diario["data"].max() - pd.DateOffset(years=10)
                                                    else dados.precos.diario["data"].min()}),
         "foto": {"data_precos": foto.get("data_precos"), "sem": foto.get("sem", []),

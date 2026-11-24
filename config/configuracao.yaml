@@ -95,3 +95,11 @@ estruturais:
   meses_min_lado_evento: 24         # teste na data do evento só com 24 meses antes e depois
   defasagens_hac: 12                # erros de Newey-West no teste da data do evento
   validade_pesquisa_dias: 7         # pesquisa na web mais velha que isso aparece como anterior à rodada
+
+# Decisões 10 e 11 do usuário: a tela e o relatório mostram o preço justo, a margem e o gráfico do modelo mesmo
+# sem estimativa confiável (com aviso), e o ranking da margem de segurança dos últimos anos. O ranking dos ativos
+# continua pelo critério estrito: sem estimativa confiável, o ativo fica na lista à parte.
+exibicao:
+  mostrar_sem_estimativa_confiavel: true
+  ranking_margem_anos: 10
+  ranking_margem_top: 10

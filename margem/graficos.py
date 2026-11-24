@@ -28,7 +28,8 @@ def ajuste_pos_analise(V: float, data_analise, ate, diario: pd.DataFrame, desd: 
 
 
 def montar(diario: pd.DataFrame, desd: pd.DataFrame, prov: pd.DataFrame, mensal: pd.DataFrame | None,
-           analise: dict, historico_ativo: list[dict], ate, tracejado: bool, eventos: list[dict]) -> dict:
+           analise: dict, historico_ativo: list[dict], ate, tracejado: bool, eventos: list[dict],
+           mostrar_sem_confiavel: bool = False) -> dict:
     ate = pd.Timestamp(ate).normalize()
     base = ate
     d = diario[diario["data"] <= ate]
@@ -44,10 +45,12 @@ def montar(diario: pd.DataFrame, desd: pd.DataFrame, prov: pd.DataFrame, mensal:
         "retorno": [[x.strftime("%Y-%m-%d"), round(float(v), 4)] for x, v in rt.items()],
         "desde": d["data"].min().strftime("%Y-%m-%d") if len(d) else None,
         "confiavel": bool(analise.get("estimativa")),
+        # Decisão 10 do usuário: o preço justo do modelo aparece mesmo sem estimativa confiável, com aviso.
+        "mostrar_justo": bool(analise.get("estimativa")) or (mostrar_sem_confiavel and bool(analise.get("preco_justo_modelo"))),
         "eventos": numerar_marcas([e for e in eventos if ini < pd.Timestamp(e["data"]) <= ate]),
         "justo": [], "historico": [], "tracejado": [],
     }
-    if not analise.get("estimativa"):
+    if not out["mostrar_justo"]:
         return out
     if mensal is not None and len(mensal):
         m = mensal[(mensal.index > ini) & (mensal.index <= ate) & mensal["V"].notna()]
@@ -58,7 +61,10 @@ def montar(diario: pd.DataFrame, desd: pd.DataFrame, prov: pd.DataFrame, mensal:
                                  None if pd.isna(r.get("P90")) else r["P90"] / f, r["preco"] / f])
     da = pd.Timestamp(analise["data_analise"]).normalize()
     fa = P.fator_entre(desd, da, base)
-    V, p10, p90 = analise["preco_justo"], analise.get("p10"), analise.get("p90")
+    if analise.get("estimativa"):
+        V, p10, p90 = analise["preco_justo"], analise.get("p10"), analise.get("p90")
+    else:
+        V, p10, p90 = analise["preco_justo_modelo"], analise.get("p10_modelo"), analise.get("p90_modelo")
     pa = analise.get("preco")
     out["justo"].append([da.strftime("%Y-%m-%d"), V / fa, None if p10 is None else p10 / fa,
                          None if p90 is None else p90 / fa, None if pa is None else pa / fa])
