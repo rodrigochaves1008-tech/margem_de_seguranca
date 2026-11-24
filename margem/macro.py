@@ -31,6 +31,10 @@ def carregar_serie(sid: str, meta: dict) -> pd.DataFrame | None:
         df = outras.fred(meta["codigo"])
     elif f == "ipea":
         df = outras.ipea(meta["codigo"])
+    elif f == "sidra":
+        df = outras.sidra(int(meta["tabela"]), int(meta["variavel"]), int(meta["classificacao"]), int(meta["categoria"]))
+    elif f == "ons":
+        df = outras.ons(meta["conjunto"], meta["subsistema"])
     elif f == "yahoo":
         df = yahoo.serie(meta["codigo"], max_idade_horas=20)["precos"].rename(columns={"fechamento": "valor"})
     else:
@@ -150,8 +154,13 @@ def cobertura(series: dict[str, pd.DataFrame], ids: list[str], faltas: list[str]
         meta = cat[sid]
         df = series.get(sid)
         fonte = {"sgs": "BCB SGS", "focus": "BCB Focus", "tesouro": "Tesouro Direto", "fred": "FRED",
-                 "ipea": "Ipeadata", "yahoo": "Yahoo Finance", "derivada": "calculada"}[meta["fonte"]]
-        if meta["fonte"] == "tesouro":
+                 "ipea": "Ipeadata", "yahoo": "Yahoo Finance", "derivada": "calculada", "sidra": "IBGE SIDRA",
+                 "ons": "ONS dados abertos"}[meta["fonte"]]
+        if meta["fonte"] == "sidra":
+            codigo = f"tabela {meta['tabela']}"
+        elif meta["fonte"] == "ons":
+            codigo = f"{meta['conjunto'].upper()} {meta['subsistema']}"
+        elif meta["fonte"] == "tesouro":
             n = meta.get("prazo_anos")
             codigo = f"{'prefixados' if meta.get('tipo') == 'prefixado' else 'IPCA+'}, {n} {'ano' if n == 1 else 'anos'}"
         else:

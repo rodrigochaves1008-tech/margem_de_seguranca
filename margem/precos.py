@@ -46,7 +46,8 @@ def fatores_ate(datas: pd.Series, desd: pd.DataFrame, ate) -> np.ndarray:
     return out
 
 
-def carregar(ticker: str, ano_inicio: int = 2010, max_idade_horas: float = 4) -> Precos:
+def carregar(ticker: str, ano_inicio: int = 2010, max_idade_horas: float = 4, acoes_por_unidade: float = 1.0) -> Precos:
+    """acoes_por_unidade > 1 (units): preços e proventos divididos para virar valor por ação."""
     notas: list[str] = []
     yh = yahoo.serie(f"{ticker.upper()}.SA", max_idade_horas=max_idade_horas)
     desd = yh["desdobramentos"].copy()
@@ -104,6 +105,11 @@ def carregar(ticker: str, ano_inicio: int = 2010, max_idade_horas: float = 4) ->
         prov["valor"] = prov["valor"].to_numpy() * fatores_ate(prov["data"], desd, hoje)
         prov = prov[prov["data"] >= pd.Timestamp(f"{ano_inicio}-01-01")].reset_index(drop=True)
     notas.append("Proventos do Yahoo: dividendos e JCP pelo valor bruto, antes do imposto retido.")
+    if acoes_por_unidade and acoes_por_unidade != 1.0:
+        diario["fechamento"] = diario["fechamento"] / acoes_por_unidade
+        if len(prov):
+            prov["valor"] = prov["valor"] / acoes_por_unidade
+        notas.append(f"{ticker} é unit ({acoes_por_unidade:g} ações): preços e proventos divididos para virar valor por ação.")
     return Precos(diario=diario, desdobramentos=desd, proventos=prov, notas=notas)
 
 

@@ -16,9 +16,18 @@ Atualize esta seção ao fim de cada fase.
 - Resultado da Fase 1: BBAS3 sem estimativa confiável. A escolha do walk-forward erra 124% do
   erro do passeio aleatório no preço 12 meses depois e 146% em 6 meses (últimos 60 meses); a rede
   neural varia 13% entre sementes. Erro típico 8,8%; preço dentro da faixa de 80% em 78% dos meses.
-- Decisões pendentes com o usuário: (1) manter o critério estrito ou mudar; (2) aceitar o
-  substituto do risco-país (NTN-B 10 anos − TIPS 10 anos; o EMBI+ acabou em 30/07/2024);
-  (3) seguir para a Fase 2 (painel com pares do setor, que deve ajudar a amostra pequena).
+- 24/11/2026: o usuário aprovou a Fase 1 (branch `fase-1` juntado na `main`) e aceitou:
+  (1) manter o critério estrito (razão de MAPE ≤ 1,00 em 12 meses e ≤ 1,10 em 6 meses);
+  (2) o substituto do risco-país (NTN-B 10 anos − TIPS 10 anos; o EMBI+ acabou em 30/07/2024);
+  (3) começar a Fase 2, incluindo o painel com pares do setor como candidato também para ativos
+  com histórico longo. Esse painel foi proposto depois de ver o backtest da Fase 1: dizer isso no
+  relatório. Fase 2 em andamento no branch `fase-2`.
+- 24/11/2026: Fase 2 implementada no branch `fase-2` (versão do modelo 1.1.0): ticker → empresa
+  e setor pelo cadastro da CVM (`mapa_cvm` em `config/setores.yaml`), cache da CVM por empresa
+  (várias numa passada), fundamentos de empresas não financeiras e alvo EV/EBITDA, setores indústria
+  e energia elétrica ativos (IBGE SIDRA, ONS, FRED, SGS), pares por setor e candidatos em painel
+  (efeito fixo por empresa), DCF e múltiplos dos pares no valuation, margem como sinal, ranking dos
+  preditores nos retreinos de 1, 2 e 3 anos atrás, units (preço dividido pelas ações da unit).
 - Não apresente o plano de novo. Não mude o desenho do modelo olhando o backtest do período
   todo sem dizer isso ao usuário (seria escolher com o período todo).
 

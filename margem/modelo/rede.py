@@ -81,18 +81,24 @@ class RedeNeural:
         self.intervalo_validacao = intervalo_validacao
         self.sementes = tuple(sementes)
 
-    def fit(self, X: np.ndarray, y: np.ndarray) -> "RedeNeural":
+    def fit(self, X: np.ndarray, y: np.ndarray, datas=None) -> "RedeNeural":
+        """`datas`: data de cada linha (no painel, várias linhas por data). A validação do early
+        stopping é o bloco final de datas, separado do treino por alguns meses."""
         X = np.asarray(X, float)
         y = np.asarray(y, float)
         self.mx, self.sx = X.mean(0), X.std(0)
         self.sx[self.sx == 0] = 1.0
         self.my, self.sy = y.mean(), y.std() or 1.0
         Xs, ys = (X - self.mx) / self.sx, (y - self.my) / self.sy
-        n = len(ys)
+        d = np.arange(len(ys)) if datas is None else np.asarray(datas)
+        unicas = np.unique(d)
+        n = len(unicas)
         n_val = max(6, int(round(self.fracao_validacao * n)))
         gap = self.intervalo_validacao if n - n_val - self.intervalo_validacao >= 18 else 0
         fim_treino = n - n_val - gap
-        Xt, yt, Xv, yv = Xs[:fim_treino], ys[:fim_treino], Xs[n - n_val:], ys[n - n_val:]
+        em_treino = np.isin(d, unicas[:fim_treino])
+        em_val = np.isin(d, unicas[n - n_val:])
+        Xt, yt, Xv, yv = Xs[em_treino], ys[em_treino], Xs[em_val], ys[em_val]
         resultados = {}
         for a in self.alphas:
             eps, perdas = [], []

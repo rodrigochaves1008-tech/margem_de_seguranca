@@ -83,6 +83,9 @@ def montar(diario: pd.DataFrame, desd: pd.DataFrame, prov: pd.DataFrame, mensal:
 def eventos_de_preco(desd: pd.DataFrame) -> list[dict]:
     ev = []
     for d, f in zip(desd["data"], desd["fator"]):
-        rot = f"desdobramento {f:g}:1" if f >= 1 else f"grupamento 1:{1 / f:g}"
+        if f >= 1:
+            rot = (f"desdobramento {f:g}:1" if float(f).is_integer() else f"bonificação (fator {f:g})").replace(".", ",")
+        else:
+            rot = f"grupamento 1:{1 / f:g}".replace(".", ",")
         ev.append({"data": pd.Timestamp(d).strftime("%Y-%m-%d"), "rotulo": rot, "tipo": "evento"})
     return ev

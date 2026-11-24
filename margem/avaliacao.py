@@ -49,6 +49,11 @@ def tabela_backtest(mensal: pd.DataFrame, preco_mensal: pd.Series, desd: pd.Data
                 series[f"{C.NOMES_MODELOS[m]} · alvo {C.NOMES_ALVOS[a]}"] = mensal[col]
     if "V__ensemble_geral|todos" in mensal:
         series[C.NOMES_MODELOS["ensemble_geral"]] = mensal["V__ensemble_geral|todos"]
+    for a in alvos:
+        for m, nome in (("painel_rn", "rede neural em painel com os pares"), ("painel_todos", "média dos modelos em painel")):
+            col = f"V__{m}|{a}"
+            if col in mensal and mensal[col].notna().any():
+                series[f"{nome} · alvo {C.NOMES_ALVOS[a]}"] = mensal[col]
     for nome, s in series.items():
         reg = {"modelo": nome}
         for h in horizontes:
@@ -154,3 +159,56 @@ def fmt_pct(v) -> str:
 def fmt_razao(v) -> str:
     from .formatos import pct
     return pct(v, 0)
+
+
+def margem_como_sinal(janela: pd.DataFrame, base: pd.DataFrame, diario: pd.DataFrame, desd: pd.DataFrame,
+                      prov: pd.DataFrame, cfg: dict) -> list[dict]:
+    """Quando a margem entrou na faixa de desconto moderado (ou mais) e na de desconto forte: retorno
+    em 6 e 12 meses (com proventos reinvestidos e custos) contra Ibovespa e CDI. Sem sinais
+    sobrepostos: um novo sinal só depois do prazo do anterior."""
+    f = cfg["faixas_margem"]
+    custo = float(cfg["custos"]["ida_e_volta"])
+    rt = P.retorno_total(diario, desd, prov, diario["data"].max())
+    meses = [d for d in base.index if d == (d + pd.offsets.MonthEnd(0)).normalize()]
+    ibov = base.loc[meses, "ibovespa"] if "ibovespa" in base else pd.Series(dtype=float)
+    cdi = base.loc[meses, "cdi_mes"] if "cdi_mes" in base else pd.Series(dtype=float)
+
+    def valor_rt(d):
+        x = rt[rt.index <= d]
+        return float(x.iloc[-1]) if len(x) else np.nan
+
+    resultados = []
+    for nome, limite in (("desconto moderado ou forte", float(f["desconto_moderado"])),
+                         ("desconto forte", float(f["desconto_forte"]))):
+        for h in (6, 12):
+            sinais, proximo = [], None
+            for s in janela.index:
+                if proximo is not None and s < proximo:
+                    continue
+                V, preco = janela.at[s, "V"], janela.at[s, "preco"]
+                if not (np.isfinite(V) and V > 0) or (V - preco) / V <= limite:
+                    continue
+                fim = _mais(s, h)
+                if fim not in ibov.index or fim > max(meses):
+                    break
+                r_acao = (valor_rt(fim) / valor_rt(s)) * (1 - custo) - 1
+                r_ibov = ibov[fim] / ibov[s] - 1 if np.isfinite(ibov.get(s, np.nan)) and ibov.get(s) else np.nan
+                # CDI acumulado em cada mês do período (no fim do mês, o CDI do próprio mês já é conhecido).
+                cdi_ref = [cdi[m] for m in cdi.index if s < m <= fim]
+                r_cdi = float(np.prod([1 + c / 100 for c in cdi_ref if np.isfinite(c)])) - 1 if cdi_ref else np.nan
+                sinais.append({"data": s, "margem": (V - preco) / V, "retorno": r_acao, "ibovespa": r_ibov, "cdi": r_cdi})
+                proximo = fim
+            x = pd.DataFrame(sinais)
+            reg = {"faixa": nome, "horizonte": h, "n": len(x)}
+            if len(x):
+                reg.update({
+                    "retorno_medio": float(x["retorno"].mean()),
+                    "excesso_ibov": float((x["retorno"] - x["ibovespa"]).mean()),
+                    "excesso_cdi": float((x["retorno"] - x["cdi"]).mean()),
+                    "acerto_ibov": float((x["retorno"] > x["ibovespa"]).mean()),
+                    "acerto_cdi": float((x["retorno"] > x["cdi"]).mean()),
+                    "sinais": [{"data": r["data"].strftime("%Y-%m-%d"), "margem": r["margem"], "retorno": r["retorno"],
+                                "ibovespa": r["ibovespa"], "cdi": r["cdi"]} for r in sinais],
+                })
+            resultados.append(reg)
+    return resultados

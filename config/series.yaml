@@ -352,3 +352,110 @@ milho_var12m:
   transformacao: var12m
   unidade: "%"
   explicacao: "o preço do milho, outra fonte de renda do agro"
+
+# ---------------- Setor: indústria ----------------
+nuci:
+  nome: "Utilização da capacidade instalada na indústria (FGV)"
+  familia: setor
+  fonte: sgs
+  codigo: 24352
+  defasagem: {meses: 1}
+  transformacao: nivel
+  unidade: "%"
+  explicacao: "quanto da capacidade das fábricas está em uso; ociosidade alta reduz a compra de máquinas e equipamentos"
+producao_industrial_var12m:
+  nome: "Produção industrial (variação em 12 meses)"
+  familia: setor
+  fonte: sidra
+  tabela: 8888
+  variavel: 12606
+  classificacao: 544
+  categoria: 129314
+  defasagem: {meses: 2}
+  transformacao: var12m
+  unidade: "%"
+  revisada: true
+  explicacao: "o ritmo da produção da indústria brasileira"
+producao_bens_capital_var12m:
+  nome: "Produção de bens de capital (variação em 12 meses)"
+  familia: setor
+  fonte: sidra
+  tabela: 8887
+  variavel: 12606
+  classificacao: 543
+  categoria: 129278
+  defasagem: {meses: 2}
+  transformacao: var12m
+  unidade: "%"
+  revisada: true
+  explicacao: "a produção de máquinas e equipamentos, que mostra o apetite das empresas por investir"
+cobre_var12m:
+  nome: "Cobre (preço internacional, variação em 12 meses)"
+  familia: setor
+  fonte: fred
+  codigo: PCOPPUSDM
+  defasagem: {meses: 2}
+  transformacao: var12m
+  unidade: "%"
+  explicacao: "o preço do cobre, insumo de motores, transformadores e cabos"
+aco_var12m:
+  nome: "Aço (preços ao produtor nos EUA, variação em 12 meses)"
+  familia: setor
+  fonte: fred
+  codigo: WPU101
+  defasagem: {meses: 2}
+  transformacao: var12m
+  unidade: "%"
+  revisada: true
+  explicacao: "o preço do aço, insumo de máquinas e equipamentos"
+euro_var12m:
+  nome: "Euro (variação em 12 meses)"
+  familia: setor
+  fonte: sgs
+  codigo: 21619
+  defasagem: {dias: 0}
+  transformacao: var12m
+  unidade: "%"
+  explicacao: "o euro em reais; parte das vendas de exportadoras industriais é em euro"
+producao_industrial_eua_var12m:
+  nome: "Produção industrial dos EUA (variação em 12 meses)"
+  familia: setor
+  fonte: fred
+  codigo: INDPRO
+  defasagem: {meses: 1}
+  transformacao: var12m
+  unidade: "%"
+  revisada: true
+  explicacao: "o ritmo da indústria americana, mercado importante para exportadores"
+
+# ---------------- Setor: energia elétrica ----------------
+reservatorios_seco:
+  nome: "Reservatórios do Sudeste/Centro-Oeste (% do máximo)"
+  familia: setor
+  fonte: ons
+  conjunto: ear
+  subsistema: SE
+  defasagem: {dias: 1}
+  transformacao: nivel
+  unidade: "%"
+  explicacao: "o nível das represas da principal região; reservatório baixo encarece a energia e afeta geradoras e distribuidoras"
+cmo_seco:
+  nome: "Custo marginal de operação do Sudeste (ONS, R$/MWh)"
+  familia: setor
+  fonte: ons
+  conjunto: cmo
+  subsistema: SE
+  defasagem: {dias: 1}
+  transformacao: nivel
+  unidade: "R$/MWh"
+  explicacao: "o custo da energia no curto prazo; base do PLD, o preço do mercado livre (o PLD da CCEE não tem acesso automatizado)"
+carga_energia_var12m:
+  nome: "Consumo de energia do país (carga do SIN, variação em 12 meses)"
+  familia: setor
+  fonte: ons
+  conjunto: carga
+  subsistema: SIN
+  defasagem: {meses: 0}
+  transformacao: var12m
+  unidade: "%"
+  explicacao: "o crescimento do consumo de energia elétrica"

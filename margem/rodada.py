@@ -48,7 +48,7 @@ def tempo_estimado_min(ticker: str) -> float:
         return 1.0
     ant, _ = _ler_anteriores(ticker, versao)
     cache_ok = (caminhos.base_local() / "tratado" / "cvm").exists()
-    return (2.0 if ant is not None else 4.0) + (0 if cache_ok else 20.0)
+    return (2.0 if ant is not None else 8.0) + (0 if cache_ok else 20.0)
 
 
 def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> dict:
@@ -73,13 +73,16 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
     dados = painel.carregar(ticker)
     datas = painel.datas_da_base(dados, hoje)
     base = painel.montar(dados, datas)
+    pares, notas_pares = painel.carregar_pares(dados, progresso)
+    dados.notas += notas_pares
+    bases_pares = {p: painel.montar(d, datas) for p, d in pares.items()}
     versao = config.versao_modelo(info["setor"])
     anteriores, escolhas_ant = _ler_anteriores(ticker, versao)
     progresso(f"{ticker}: walk-forward ({'só os meses novos' if anteriores is not None else 'completo, pode levar alguns minutos'})")
     candidatas = [v for fam in painel.preditores_do_setor(setor).values() for v in fam]
     desd = dados.precos.desdobramentos
     res = WF.rodar(base, setor["alvos"], candidatas, cfg, dados.cvm["documentos"]["divulgacao"], desd, hoje,
-                   anteriores, escolhas_ant, progresso=progresso)
+                   anteriores, escolhas_ant, progresso=progresso, pares=bases_pares, ticker=ticker)
     mensal, h = res.mensal, res.hoje
     meses = [d for d in base.index if _fim_de_mes(d)]
     preco_mensal = base.loc[meses, "preco"]
@@ -87,10 +90,13 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
     aval = avaliacao.avaliar(mensal, h, linha_hoje, base, preco_mensal, desd, cfg, setor.get("obrigatorios", []))
     progresso(f"{ticker}: ranking dos preditores e checagens")
     imp = preditores.importancia(res.passos_hoje, base, hoje, setor) if res.passos_hoje else None
-    val = valuation.calcular(base, hoje, None, cfg)
+    val = valuation.calcular(base, hoje, None, cfg, setor.get("contabilidade", "geral"), bases_pares)
     anos = int(cfg["modelo"]["anos_fora_amostra"])
     jan = avaliacao.janela_backtest(mensal, hoje, anos) if len(mensal) else mensal
     bt = avaliacao.tabela_backtest(jan, preco_mensal, desd, hoje, setor["alvos"]) if len(jan) else pd.DataFrame()
+    sinais = avaliacao.margem_como_sinal(jan, base, dados.precos.diario, desd, dados.precos.proventos, cfg) if len(jan) else []
+    progresso(f"{ticker}: ranking dos preditores de 1, 2 e 3 anos atrás")
+    historia_preditores = _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, bases_pares, ticker, imp)
 
     stamp = agora.strftime("%Y-%m-%d_%H%M")
     pasta_rel = caminhos.pasta_relatorios(ticker) / stamp
@@ -102,6 +108,7 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
     foto = ranking_dos_ativos.atualizar(novas={ticker: analise}, progresso=progresso)
     ctx = _contexto_relatorio(ticker, info, setor, analise, aval, imp, val, bt, jan, res, base, linha_hoje,
                               dados, foto, agora, hoje, cfg)
+    ctx.update(_contexto_fase2(sinais, historia_preditores, pares, setor))
     dg = graficos.montar(dados.precos.diario, desd, dados.precos.proventos, mensal, analise,
                          historico.do_ativo(ticker), pd.Timestamp(h["data_preco"]), tracejado=False,
                          eventos=graficos.eventos_de_preco(desd))
@@ -117,6 +124,61 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
     progresso(f"{ticker}: pronto em {dur / 60:.1f} min · {pos}")
     return {"ticker": ticker, "analise": analise, "posicao": pos, "tela": caminhos.pasta_ativos() / f"{ticker}.html",
             "relatorio": pasta_rel / "relatorio.html", "ranking": foto2, "duracao_s": dur}
+
+
+# ------------------------------------------------------------------ fase 2: preditores no tempo e sinais
+
+def _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, bases_pares, ticker, imp_hoje) -> list[dict]:
+    """Ranking dos preditores nos retreinos de 1, 2 e 3 anos atrás (modelos refeitos, iguais aos da época)."""
+    if res.escolhas is None or not len(res.escolhas) or imp_hoje is None:
+        return []
+    out = [{"quando": "hoje", "data": hoje, "top": imp_hoje.head(5)[["nome", "importancia"]].to_dict("records"),
+            "comuns": None, "correlacao": None}]
+    top_hoje = list(imp_hoje.head(5)["variavel"])
+    esc = res.escolhas.sort_values("data")
+    for anos in (1, 2, 3):
+        alvo = hoje - pd.DateOffset(years=anos)
+        x = esc[esc["data"] <= alvo]
+        if x.empty:
+            continue
+        r = pd.Timestamp(x["data"].iloc[-1])
+        passo = WF.refazer_passo(base, r, setor["alvos"], candidatas, cfg, x["escolhido"].iloc[-1], bases_pares, ticker)
+        if passo is None or r not in base.index:
+            continue
+        try:
+            imp = preditores.importancia(passo, base, r, setor)
+        except Exception:
+            continue
+        comum = imp.set_index("variavel")["importancia"].reindex(imp_hoje["variavel"]).dropna()
+        corr = (imp_hoje.set_index("variavel")["importancia"].reindex(comum.index).rank()
+                .corr(comum.rank())) if len(comum) > 2 else np.nan
+        out.append({"quando": f"há {anos} {'ano' if anos == 1 else 'anos'}", "data": r,
+                    "top": imp.head(5)[["nome", "importancia"]].to_dict("records"),
+                    "comuns": len(set(imp.head(5)["variavel"]) & set(top_hoje)), "correlacao": corr})
+    return out
+
+
+def _contexto_fase2(sinais, historia, pares, setor) -> dict:
+    linhas_sinal = []
+    for s in sinais:
+        linhas_sinal.append({"faixa": s["faixa"], "horizonte": s["horizonte"], "n": s["n"],
+                             "retorno_medio": s.get("retorno_medio"), "excesso_ibov": s.get("excesso_ibov"),
+                             "excesso_cdi": s.get("excesso_cdi"), "acerto_ibov": s.get("acerto_ibov"),
+                             "acerto_cdi": s.get("acerto_cdi")})
+    n_max = max([s["n"] for s in sinais], default=0)
+    texto = ("Poucos sinais: com prazos de 6 e 12 meses sem sobreposição, a amostra é pequena e o resultado não "
+             "permite conclusão estatística." if n_max < 10 else "")
+    hist_txt = []
+    for h in historia[1:]:
+        hist_txt.append(f"{h['quando']} ({formatos.data(h['data'])}): {h['comuns']} dos 5 maiores de hoje já estavam entre "
+                        f"os 5 maiores; correlação de postos entre os rankings: {formatos.num(h['correlacao'], 2)}.")
+    return {"sinais": linhas_sinal, "texto_sinais": texto, "historia_preditores": historia,
+            "texto_historia_preditores": hist_txt,
+            "pares": sorted(pares), "nota_painel": (
+                f"Painel com os pares do setor ({', '.join(sorted(pares))}): os candidatos em painel treinam o ativo e os "
+                "pares juntos, com efeito fixo por empresa, e disputam a escolha do walk-forward como os demais. "
+                "Esse painel foi incluído depois de ver o resultado da Fase 1 (aceito pelo usuário); o critério de "
+                "estimativa confiável não mudou.") if pares else ""}
 
 
 # ------------------------------------------------------------------ montagem dos registros
@@ -249,9 +311,17 @@ def _fmt_valor(v: str, x) -> str:
     cat = config.catalogo_series()
     un = cat.get(v, {}).get("unidade", "")
     tr = cat.get(v, {}).get("transformacao", "nivel")
-    if v in ("roe", "roa", "cresc_lucro_12m", "cresc_lucro_3a", "eficiencia", "custo_credito", "margem_financeira",
-             "cresc_ativo_12m", "payout") or tr == "var12m":
+    if v in ("roe", "roa", "roic", "cresc_lucro_12m", "cresc_lucro_3a", "eficiencia", "custo_credito",
+             "margem_financeira", "cresc_ativo_12m", "payout", "margem_bruta", "margem_ebitda", "margem_ebit",
+             "margem_liquida", "cresc_receita_12m", "cresc_ebitda_12m", "cresc_receita_3a", "cresc_ebitda_3a",
+             "fcl_receita", "capex_receita", "variacao_acoes_12m", "free_float", "divida_liquida_pl") or tr == "var12m":
         return formatos.pct(x, 1)
+    if v in ("divida_liquida_ebitda", "cobertura_juros", "liquidez_corrente", "giro_ativo"):
+        return formatos.num(x, 2) + "×"
+    if v == "ciclo_caixa":
+        return formatos.num(x, 0) + " dias"
+    if v == "_conv_divida":
+        return "R$ " + formatos.num(x / 1e9, 1) + " bi"
     if v.startswith("_conv") or v in ("log_lucro_12m", "log_patrimonio"):
         return "R$ " + formatos.num(np.exp(x) / 1e9, 1) + " bi"
     if v == "alavancagem":
@@ -320,10 +390,13 @@ def _contexto_relatorio(ticker, info, setor, a, aval, imp, val, bt, jan, res, ba
                          "valor_txt": _fmt_valor(p["variavel"], p["valor_hoje"]),
                          "mediana_txt": _fmt_valor(p["variavel"], p["mediana_treino"])})
         for _, p in imp.head(5).iterrows():
-            comp = "acima" if p["valor_hoje"] > p["mediana_treino"] else "abaixo"
+            vh, vm = _fmt_valor(p["variavel"], p["valor_hoje"]), _fmt_valor(p["variavel"], p["mediana_treino"])
+            comp = ("igual à mediana" if vh == vm else
+                    "acima da mediana" if p["valor_hoje"] > p["mediana_treino"] else "abaixo da mediana")
+            efeito = (f"no modelo, isso empurra o preço justo {p['direcao']}" if p["direcao"] != "—"
+                      else "o efeito de hoje não pôde ser calculado")
             explicacoes.append(
-                f"{p['nome']}: {p['explicacao']}. Hoje está em {_fmt_valor(p['variavel'], p['valor_hoje'])}, {comp} da mediana "
-                f"do período de treino ({_fmt_valor(p['variavel'], p['mediana_treino'])}); no modelo, isso empurra o preço justo {p['direcao']}.")
+                f"{p['nome']}: {p['explicacao']}. Hoje está em {vh}, {comp} do período de treino ({vm}); {efeito}.")
         mudanca = _mudanca_preditores(res, hoje, alvo)
 
     macro_ids = ["selic", "juro_curto", "juro_longo", "juro_real_longo", "ipca_12m", "focus_ipca_12m",
@@ -421,6 +494,7 @@ def _contexto_relatorio(ticker, info, setor, a, aval, imp, val, bt, jan, res, ba
         "n_retreinos": len(res.escolhas), "contagem_escolhas": contagem,
         "valuation": val_rows, "texto_valuation": texto_val,
         "rotulo_dif": "Diferença para o preço justo do modelo" if confiavel else "Diferença para o preço atual",
+        "custo_ida_volta": float(cfg["custos"]["ida_e_volta"]),
         "limitacoes": limitacoes, "cobertura_series": [precos_cob, cvm_cob] + cob,
         "metodologia": _metodologia(setor, cfg),
     }
@@ -444,8 +518,7 @@ def _mudanca_preditores(res, hoje, alvo) -> str:
                           "eram usadas")
     nomes = ", ".join(preditores.nome_preditor(v) for v in atual)
     return (f"Variáveis escolhidas no retreino mais recente (alvo {C.NOMES_ALVOS.get(a, a)}): {nomes}. "
-            + ("; ".join(partes) + ". " if partes else "")
-            + "A comparação do ranking por SHAP em cada data entra na Fase 2.")
+            + ("; ".join(partes) + "." if partes else ""))
 
 
 def _texto_valuation(val, rows, confiavel, linha, base, hoje) -> list[str]:
@@ -487,7 +560,16 @@ def _limitacoes(dados, aval, setor) -> list[str]:
                "10 anos, no lugar dos contratos de DI futuro da B3.")
     lim.append("Amostra pequena: cerca de 190 meses e fundamentos trimestrais (umas 60 observações independentes). "
                "A rede neural é pequena e regularizada, mas o risco de sobreajuste continua alto.")
-    lim.append("Fase 1: pares do setor, margem como sinal, mudanças estruturais e projeção por cenários ainda não entram.")
+    if setor.get("contabilidade") != "banco":
+        lim.append("Empresas não financeiras: EBITDA = EBIT + depreciação e amortização da DFC; capex = aquisições de "
+                   "imobilizado e intangível. Em concessões (energia), parte do investimento vai para ativos de contrato "
+                   "e não aparece como capex, o que superestima o fluxo de caixa livre.")
+    if "reservatorios_seco" in dados.ids_series:
+        lim.append("Energia: PLD e GSF são da CCEE, que recusa acesso automatizado a partir de servidores; o custo "
+                   "marginal de operação (CMO) do ONS entra no lugar do PLD, e o GSF fica de fora.")
+    lim.append("Valor de mercado: preço do ticker analisado × total de ações (ON + PN). Em units, o preço é dividido "
+               "pelo número de ações da unit.")
+    lim.append("Fase 3 (ainda não entra): mudanças estruturais e projeção por cenários.")
     return lim
 
 
@@ -509,6 +591,9 @@ def _metodologia(setor, cfg) -> list[str]:
         "(mínimo de 24 meses). Erro típico: mediana de |V − P| ÷ V nos meses fora da amostra.",
         "Importância dos preditores: SHAP (permutação) sobre o log do valor de mercado estimado, conferida por "
         "importância de permutação.",
+        "Painel com os pares do setor (config/setores.yaml): candidatos com o ativo e os pares juntos, alvos em "
+        "múltiplo (P/L, P/VP e, fora dos bancos, EV/EBITDA) e efeito fixo por empresa; a seleção de variáveis olha "
+        "a variação dentro de cada empresa e a validação separa por data.",
         "Fontes: CVM dados abertos (DFP, ITR, FRE); B3 (COTAHIST); Yahoo Finance (proventos, desdobramentos, índices); "
         "Banco Central (SGS e Boletim Focus); Tesouro Transparente (Tesouro Direto); FRED; Ipeadata.",
     ]

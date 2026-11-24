@@ -4,10 +4,29 @@
 # margem/fundamentos.py (empresa).
 # Ativo de setor fora do mapa (ou com "ativo: false"): a rodada para e propõe os preditores.
 
+# Setor de atividade da CVM (cadastro de companhias) → setor deste mapa. Vale a primeira regra
+# cujo trecho aparecer no setor da CVM. Setor sem regra = fora do mapa (precisa do seu OK).
+mapa_cvm:
+  - ["Bancos", bancos]
+  - ["Energia Elétrica", energia_eletrica]
+  - ["Máqs., Equip.", industria]
+  - ["Máquinas, Equipamentos", industria]
+  - ["Metalurgia e Siderurgia", commodities]
+  - ["Extração Mineral", commodities]
+  - ["Petróleo e Gás", commodities]
+  - ["Papel e Celulose", commodities]
+  - ["Comércio", varejo]
+  - ["Const", construcao]
+  - ["Educação", educacao]
+  - ["Farmacêutico", saude]
+  - ["Serviços médicos", saude]
+  - ["Serviços Médicos", saude]
+
+# Ajustes por ativo (opcional): sobrepõem o que vem da CVM.
 ativos:
-  BBAS3: {nome: "Banco do Brasil", setor: bancos, cnpj: "00.000.000/0001-91"}
-  WEGE3: {nome: "WEG", setor: industria, cnpj: "84.429.695/0001-11"}
-  CMIG4: {nome: "Cemig", setor: energia_eletrica, cnpj: "17.155.730/0001-64"}
+  BBAS3: {nome: "Banco do Brasil", setor: bancos}
+  WEGE3: {nome: "WEG", setor: industria}
+  CMIG4: {nome: "Cemig", setor: energia_eletrica}
 
 setores:
   bancos:
@@ -16,9 +35,12 @@ setores:
     contabilidade: banco
     # Alvos em disputa no walk-forward (valor de mercado, P/L e P/VP, todos em log).
     alvos: [log_valor_mercado, log_pl, log_pvp]
+    # Pares do setor: entram no painel (candidato a mais no walk-forward) e na comparação de múltiplos.
+    pares: [ITUB4, BBDC4, SANB11, ABCB4, BRSR6]
     preditores:
       empresa: [log_lucro_12m, log_patrimonio, roe, roa, cresc_lucro_12m, cresc_lucro_3a,
-                eficiencia, custo_credito, margem_financeira, cresc_ativo_12m, alavancagem, payout]
+                eficiencia, custo_credito, margem_financeira, cresc_ativo_12m, alavancagem, payout,
+                variacao_acoes_12m, free_float]
       setor: [inad_total, inad_pf, inad_pj, inad_rural_pf, spread_credito, icc,
               cresc_credito_sfn, soja_var12m, milho_var12m]
       macro_brasil: [selic, juro_curto, juro_longo, inclinacao, juro_real_longo, ipca_12m,
@@ -28,22 +50,54 @@ setores:
                  commodities_var12m]
     obrigatorios: [roe, selic, inad_total]
 
-  # Setores abaixo: entram na Fase 2. Listas iniciais, a revisar antes de ativar.
   industria:
     nome: "Indústria"
-    ativo: false
+    ativo: true
     contabilidade: geral
     alvos: [log_valor_mercado, log_pl, log_pvp, log_ev_ebitda]
+    pares: [ROMI3, KEPL3, TUPY3, RAPT4, POMO4, MYPK3, LEVE3, FRAS3]
     preditores:
-      setor: [nuci, producao_industrial_var12m, producao_bens_capital_var12m, confianca_industria,
-              cobre_var12m, aco_var12m, ipa_industrial_12m, euro_var12m, producao_industrial_eua_var12m]
+      empresa: [log_lucro_12m, log_patrimonio, log_receita_12m, log_ebitda_12m, roe, roa, roic,
+                margem_bruta, margem_ebitda, margem_ebit, margem_liquida, cresc_receita_12m,
+                cresc_ebitda_12m, cresc_lucro_12m, cresc_receita_3a, cresc_ebitda_3a, cresc_lucro_3a,
+                divida_liquida_ebitda, divida_liquida_pl, cobertura_juros, liquidez_corrente,
+                fcl_receita, capex_receita, giro_ativo, ciclo_caixa, payout, variacao_acoes_12m,
+                free_float]
+      setor: [nuci, producao_industrial_var12m, producao_bens_capital_var12m, cobre_var12m, aco_var12m,
+              euro_var12m, producao_industrial_eua_var12m]
+      macro_brasil: [selic, juro_curto, juro_longo, inclinacao, juro_real_longo, ipca_12m,
+                     focus_ipca_12m, focus_selic_prox_ano, focus_pib_prox_ano, dolar_var12m,
+                     ibc_br_var12m, desemprego, ibovespa_var12m, premio_risco_brasil]
+      exterior: [fed_funds, ust2, ust10, vix, sp500_var12m, dxy_var12m, brent_var12m,
+                 commodities_var12m]
+    obrigatorios: [roe, selic, producao_industrial_var12m]
+    # A confiança da indústria e o PMI industrial ficaram de fora: o PMI é pago e o código da
+    # confiança no SGS não foi confirmado.
+
   energia_eletrica:
     nome: "Energia elétrica"
-    ativo: false
+    ativo: true
     contabilidade: geral
     alvos: [log_valor_mercado, log_pl, log_pvp, log_ev_ebitda]
+    pares: [CPLE3, EGIE3, TAEE11, EQTL3, CPFE3, ENGI11, NEOE3, ALUP11, ISAE4]
     preditores:
-      setor: [reservatorios_seco, gsf, pld, carga_energia_var12m, igpm_12m, ipca_12m]
+      empresa: [log_lucro_12m, log_patrimonio, log_receita_12m, log_ebitda_12m, roe, roa, roic,
+                margem_bruta, margem_ebitda, margem_ebit, margem_liquida, cresc_receita_12m,
+                cresc_ebitda_12m, cresc_lucro_12m, cresc_receita_3a, cresc_ebitda_3a, cresc_lucro_3a,
+                divida_liquida_ebitda, divida_liquida_pl, cobertura_juros, liquidez_corrente,
+                fcl_receita, capex_receita, giro_ativo, ciclo_caixa, payout, variacao_acoes_12m,
+                free_float]
+      setor: [reservatorios_seco, cmo_seco, carga_energia_var12m, igpm_12m]
+      macro_brasil: [selic, juro_curto, juro_longo, inclinacao, juro_real_longo, ipca_12m,
+                     focus_ipca_12m, focus_selic_prox_ano, focus_pib_prox_ano, dolar_var12m,
+                     ibc_br_var12m, desemprego, ibovespa_var12m, premio_risco_brasil]
+      exterior: [fed_funds, ust2, ust10, vix, sp500_var12m, dxy_var12m, brent_var12m,
+                 commodities_var12m]
+    obrigatorios: [roe, selic, reservatorios_seco]
+    # PLD e GSF são da CCEE, que recusa acesso automatizado; o CMO do ONS entra no lugar do PLD.
+    # Reajustes e revisões tarifárias (ANEEL) entram como eventos na Fase 3.
+
+  # Setores abaixo: listas iniciais, a revisar e aprovar antes de ativar.
   varejo:
     nome: "Varejo"
     ativo: false

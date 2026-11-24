@@ -41,18 +41,37 @@ def recarregar() -> None:
     _carregar.cache_clear()
 
 
+def setor_do_cvm(setor_cvm: str) -> str | None:
+    """Setor deste mapa para o setor de atividade da CVM (primeira regra que casar)."""
+    for trecho, setor in setores().get("mapa_cvm", []) or []:
+        if str(trecho).lower() in (setor_cvm or "").lower():
+            return setor
+    return None
+
+
 def info_ativo(ticker: str) -> dict:
-    """Dados do ativo no setores.yaml (nome, setor, CNPJ). Erro claro se não estiver no mapa."""
+    """Empresa, CNPJ e setor do ativo: cadastro da CVM, com os ajustes de config/setores.yaml.
+    KeyError com mensagem clara se o ticker não existir ou se o setor estiver fora do mapa."""
+    from .fontes import cadastro
+
     t = ticker.upper()
-    ativos = setores().get("ativos", {})
-    if t not in ativos:
-        raise KeyError(
-            f"{t} não está em config/setores.yaml (seção 'ativos'). "
-            "Inclua nome, setor e CNPJ; se o setor não estiver no mapa, os preditores "
-            "precisam ser propostos e aprovados antes."
-        )
-    info = dict(ativos[t])
+    ajuste = dict(setores().get("ativos", {}).get(t, {}) or {})
+    try:
+        res = cadastro.resolver(t)
+    except Exception:
+        res = None
+    if res is None and not ajuste.get("cnpj"):
+        raise KeyError(f"{t}: ticker não encontrado no cadastro da CVM (FCA). Confira o código.")
+    info = {**(res or {}), **ajuste}
+    if not info.get("setor"):
+        s = setor_do_cvm(info.get("setor_cvm", ""))
+        if s is None:
+            raise KeyError(
+                f"{t}: o setor da CVM '{info.get('setor_cvm')}' está fora do mapa (config/setores.yaml, mapa_cvm). "
+                "Os preditores desse setor precisam ser propostos e aprovados antes.")
+        info["setor"] = s
     info["ticker"] = t
+    info["estatal"] = "ESTATAL" in str(info.get("controle") or "").upper()
     return info
 
 

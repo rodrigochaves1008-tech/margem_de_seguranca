@@ -39,6 +39,13 @@ python -m margem tirar BBAS3
 python -m margem teste-vazamento BBAS3
 ```
 
+## Setores e pares
+
+O setor de cada ativo vem do cadastro da CVM, ligado aos setores do modelo por `config/setores.yaml`
+(`mapa_cvm`). Hoje estão ativos: bancos, indústria e energia elétrica. Cada setor tem a sua lista de
+preditores e de pares; os pares entram num painel (candidato a mais no walk-forward) e na comparação
+de múltiplos. Ativo de setor fora do mapa: a rodada para e pede a aprovação dos preditores.
+
 ## Onde ficam as coisas
 
 - `saida/ativos/<TICKER>.html`: tela do ativo, com os gráficos de 10 anos.

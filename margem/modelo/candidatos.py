@@ -25,8 +25,10 @@ NOMES_MODELOS = {
     "ens_rn_ridge": "média: rede neural + ridge", "ens_rn_gb": "média: rede neural + boosting",
     "ens_ridge_gb": "média: ridge + boosting", "ensemble_todos": "média dos três modelos",
     "ensemble_geral": "média de todos os modelos e alvos", "passeio": "passeio aleatório (último preço)",
+    "painel_rn": "rede neural em painel com os pares", "painel_todos": "média dos modelos em painel com os pares",
 }
-NOMES_ALVOS = {"log_valor_mercado": "valor de mercado", "log_pl": "P/L", "log_pvp": "P/VP", "todos": "todos os alvos"}
+NOMES_ALVOS = {"log_valor_mercado": "valor de mercado", "log_pl": "P/L", "log_pvp": "P/VP",
+               "log_ev_ebitda": "EV/EBITDA", "todos": "todos os alvos"}
 
 
 @dataclass
@@ -39,10 +41,21 @@ class Ajuste:
     info_selecao: dict = field(default_factory=dict)
 
 
+def divisoes_no_tempo(datas, n_splits: int = 4) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Validação cruzada em ordem de tempo por data (no painel, todas as empresas de uma data ficam
+    do mesmo lado). Com uma empresa só, é igual ao TimeSeriesSplit nas linhas."""
+    d = pd.to_datetime(pd.Series(datas)).to_numpy()
+    unicas = np.unique(d)
+    out = []
+    for tr, te in TimeSeriesSplit(n_splits=n_splits).split(unicas):
+        out.append((np.where(np.isin(d, unicas[tr]))[0], np.where(np.isin(d, unicas[te]))[0]))
+    return out
+
+
 class _RidgeEscalado:
-    def __init__(self):
+    def __init__(self, cv=None):
         self.esc = StandardScaler()
-        self.m = RidgeCV(alphas=(0.3, 1.0, 3.0, 10.0, 30.0, 100.0), cv=TimeSeriesSplit(n_splits=4))
+        self.m = RidgeCV(alphas=(0.3, 1.0, 3.0, 10.0, 30.0, 100.0), cv=cv if cv is not None else TimeSeriesSplit(n_splits=4))
 
     def fit(self, X, y):
         self.m.fit(self.esc.fit_transform(X), y)
@@ -52,14 +65,21 @@ class _RidgeEscalado:
         return self.m.predict(self.esc.transform(X))
 
 
-def selecionar_variaveis(treino: pd.DataFrame, alvo: str, candidatas: list[str], cfg_sel: dict) -> tuple[list[str], dict, dict]:
+def selecionar_variaveis(treino: pd.DataFrame, alvo: str, candidatas: list[str], cfg_sel: dict,
+                         grupos: pd.Series | None = None) -> tuple[list[str], dict, dict]:
+    """Cobertura, redundância e LASSO com validação no tempo. No painel (`grupos` = empresa de cada
+    linha), a seleção olha a variação dentro de cada empresa (o nível de cada uma fica com o efeito fixo)."""
     y = treino[alvo]
     cols = [c for c in candidatas if c in treino.columns]
     cob = treino[cols].notna().mean()
     cols = [c for c in cols if cob[c] >= cfg_sel["cobertura_min"]]
     medianas = treino[cols].median().to_dict()
     X = treino[cols].fillna(medianas)
-    cols = [c for c in cols if X[c].std() > 0]
+    if grupos is not None:
+        g = pd.Series(np.asarray(grupos), index=X.index)
+        X = X - X.groupby(g.values).transform("mean")
+        y = y - y.groupby(g.values).transform("mean")
+    cols = [c for c in cols if X[c].std() > 1e-12]
     X = X[cols]
     if not cols:
         return [], {}, {"motivo": "nenhuma variável com cobertura suficiente"}
@@ -76,7 +96,7 @@ def selecionar_variaveis(treino: pd.DataFrame, alvo: str, candidatas: list[str],
     Xm = StandardScaler().fit_transform(X[mantidas])
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        lasso = LassoCV(cv=TimeSeriesSplit(n_splits=4), alphas=30, max_iter=5000).fit(Xm, y.to_numpy())
+        lasso = LassoCV(cv=divisoes_no_tempo(treino.index), alphas=30, max_iter=5000).fit(Xm, y.to_numpy())
     coef = pd.Series(np.abs(lasso.coef_), index=mantidas)
     escolhidas = [c for c in sorted(mantidas, key=lambda c: (-coef[c], c)) if coef[c] > 0][:k_max]
     if len(escolhidas) < 2:
@@ -86,15 +106,24 @@ def selecionar_variaveis(treino: pd.DataFrame, alvo: str, candidatas: list[str],
     return escolhidas, {c: medianas[c] for c in escolhidas}, info
 
 
-def ajustar(treino: pd.DataFrame, alvo: str, candidatas: list[str], cfg_modelo: dict) -> Ajuste | None:
+def ajustar(treino: pd.DataFrame, alvo: str, candidatas: list[str], cfg_modelo: dict,
+            fixas: list[str] | None = None, grupos_col: str | None = None) -> Ajuste | None:
+    """Ajusta rede neural, ridge e boosting para um alvo. `fixas`: colunas sempre usadas, fora da
+    seleção (no painel, os efeitos fixos de empresa); `grupos_col`: coluna com a empresa de cada linha."""
     treino = treino[treino[alvo].notna()]
-    if len(treino) < int(cfg_modelo["meses_treino_min"]):
+    if treino.index.nunique() < int(cfg_modelo["meses_treino_min"]):
         return None
-    variaveis, medianas, info = selecionar_variaveis(treino, alvo, candidatas, cfg_modelo["selecao_variaveis"])
+    grupos = treino[grupos_col] if grupos_col else None
+    variaveis, medianas, info = selecionar_variaveis(treino, alvo, candidatas, cfg_modelo["selecao_variaveis"], grupos)
     if not variaveis:
         return None
+    fixas = [c for c in (fixas or []) if c in treino.columns]
+    for c in fixas:
+        medianas[c] = 0.0
+    variaveis = variaveis + fixas
     X = treino[variaveis].fillna(medianas).to_numpy(float)
     y = treino[alvo].to_numpy(float)
+    divisoes = divisoes_no_tempo(treino.index)
     rn_cfg = cfg_modelo["rede_neural"]
     gb_cfg = cfg_modelo["boosting"]
     modelos = {
@@ -102,8 +131,8 @@ def ajustar(treino: pd.DataFrame, alvo: str, candidatas: list[str], cfg_modelo: 
                          taxa=float(rn_cfg["taxa_aprendizado"]), epocas_max=int(rn_cfg["epocas_max"]),
                          paciencia=int(rn_cfg["paciencia"]), fracao_validacao=float(rn_cfg["fracao_validacao"]),
                          intervalo_validacao=int(rn_cfg["intervalo_validacao_meses"]),
-                         sementes=cfg_modelo["sementes"]).fit(X, y),
-        "ridge": _RidgeEscalado().fit(X, y),
+                         sementes=cfg_modelo["sementes"]).fit(X, y, datas=treino.index),
+        "ridge": _RidgeEscalado(cv=divisoes).fit(X, y),
         "gb": HistGradientBoostingRegressor(
             max_iter=int(gb_cfg["iteracoes"]), learning_rate=float(gb_cfg["taxa_aprendizado"]),
             max_depth=int(gb_cfg["profundidade_max"]), min_samples_leaf=int(gb_cfg["folhas_min"]),

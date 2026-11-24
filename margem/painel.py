@@ -5,6 +5,7 @@ Alvos (todos em log e independentes da base de ações):
 - log_valor_mercado = log(preço × ações em circulação)
 - log_pl = log(valor de mercado ÷ lucro de 12 meses)
 - log_pvp = log(valor de mercado ÷ patrimônio)
+- log_ev_ebitda = log((valor de mercado + dívida líquida + minoritários) ÷ EBITDA de 12 meses)
 O preço justo por ação sai dividindo o valor de mercado estimado pelas ações da data.
 """
 from __future__ import annotations
@@ -18,7 +19,7 @@ import pandas as pd
 from . import config, fundamentos, macro, precos
 from .fontes import cvm
 
-ALVOS = ("log_valor_mercado", "log_pl", "log_pvp")
+ALVOS = ("log_valor_mercado", "log_pl", "log_pvp", "log_ev_ebitda")
 
 
 @dataclass
@@ -45,7 +46,7 @@ def carregar(ticker: str) -> DadosBrutos:
     ini = pd.Timestamp(c["modelo"]["inicio_dados"]).year
     notas: list[str] = []
     print(f"  preços e proventos de {ticker}...", flush=True)
-    pr = precos.carregar(ticker, ano_inicio=ini)
+    pr = precos.carregar(ticker, ano_inicio=ini, acoes_por_unidade=float(info.get("acoes_por_unidade", 1.0) or 1.0))
     notas += pr.notas
     print("  balanços da CVM...", flush=True)
     dados_cvm = cvm.carregar(info["cnpj"])
@@ -62,6 +63,38 @@ def carregar(ticker: str) -> DadosBrutos:
     notas += faltas
     return DadosBrutos(ticker=ticker.upper(), info=info, setor=setor, precos=pr, cvm=dados_cvm,
                        series=series, ids_series=ids, notas=notas)
+
+
+def carregar_pares(dados: DadosBrutos, progresso=print) -> tuple[dict[str, "DadosBrutos"], list[str]]:
+    """Dados dos pares do setor (config/setores.yaml, 'pares'), com as mesmas séries de macro e setor."""
+    pares = [p.upper() for p in (dados.setor.get("pares") or []) if p.upper() != dados.ticker]
+    if not pares:
+        return {}, []
+    c = config.cfg()
+    ini = pd.Timestamp(c["modelo"]["inicio_dados"]).year
+    notas, infos = [], {}
+    for p in pares:
+        try:
+            infos[p] = config.info_ativo(p)
+        except KeyError as e:
+            notas.append(f"Par {p} ignorado: {e}")
+    if progresso:
+        progresso(f"  pares do setor: {', '.join(infos)}")
+    cnpjs = sorted({i["cnpj"] for i in infos.values()})
+    cvms = cvm.carregar_varias(cnpjs)
+    fres = cvm.capital_fre_varias(cnpjs)
+    out = {}
+    for p, info in infos.items():
+        try:
+            pr = precos.carregar(p, ano_inicio=ini, acoes_por_unidade=float(info.get("acoes_por_unidade", 1.0) or 1.0))
+        except Exception as e:
+            notas.append(f"Par {p} sem preços ({e.__class__.__name__}); ignorado.")
+            continue
+        d = dict(cvms[info["cnpj"]])
+        d["capital_fre"] = fres[info["cnpj"]]
+        out[p] = DadosBrutos(ticker=p, info=info, setor=dados.setor, precos=pr, cvm=d, series=dados.series,
+                             ids_series=dados.ids_series, notas=[])
+    return out, notas
 
 
 def datas_da_base(dados: DadosBrutos, ate: pd.Timestamp) -> list[pd.Timestamp]:
@@ -110,8 +143,26 @@ def montar(dados: DadosBrutos, datas: list[pd.Timestamp]) -> pd.DataFrame:
         r["log_valor_mercado"] = np.log(vm) if np.isfinite(vm) and vm > 0 else np.nan
         r["log_pl"] = np.log(vm / lucro) if np.isfinite(vm) and np.isfinite(lucro) and lucro > 0 else np.nan
         r["log_pvp"] = np.log(vm / pl) if np.isfinite(vm) and np.isfinite(pl) and pl > 0 else np.nan
+        ebitda = r.get("ebitda_12m", np.nan)
+        dl = r.get("divida_liquida", np.nan)
+        ev = vm + dl + r.get("minoritarios", 0.0) if np.isfinite(vm) and np.isfinite(dl) else np.nan
+        r["valor_firma"] = ev
+        r["log_ev_ebitda"] = (np.log(ev / ebitda) if np.isfinite(ev) and np.isfinite(ebitda) and ebitda > 0 and ev > 0
+                              else np.nan)
         linhas.append(r)
     base = pd.DataFrame(linhas).set_index("data")
+    # Emissões e recompras: ações hoje contra 12 meses antes, na mesma base (sem desdobramentos).
+    var = []
+    for d in base.index:
+        ant = d - pd.DateOffset(years=1)
+        a0 = base["acoes"].get(d, np.nan) if "acoes" in base else np.nan
+        x = base[(base.index <= ant)]
+        if len(x) and "acoes" in x and np.isfinite(x["acoes"].iloc[-1]) and np.isfinite(a0):
+            a1 = x["acoes"].iloc[-1] * precos.fator_entre(desd, x.index[-1], d)
+            var.append(a0 / a1 - 1 if a1 > 0 else np.nan)
+        else:
+            var.append(np.nan)
+    base["variacao_acoes_12m"] = var
     tab = macro.tabela_pit(dados.series, dados.ids_series, datas)
     base = base.join(tab)
     return base
@@ -165,9 +216,10 @@ def corromper_depois(dados: DadosBrutos, corte: pd.Timestamp, semente: int) -> D
             c.loc[m, col] = ruido(c.loc[m, col])
     fre = d.cvm.get("capital_fre")
     if fre is not None and not fre.empty:
-        flutuante(fre, ["acoes_total"])
+        flutuante(fre, ["acoes_total", "free_float"])
         m = fre["divulgacao"] > corte
         fre.loc[m, "acoes_total"] = ruido(fre.loc[m, "acoes_total"])
+        fre.loc[m, "free_float"] = rng.uniform(0.05, 0.95, size=int(m.sum()))
     for sid, s in d.series.items():
         flutuante(s, ["valor"])
         m = s["divulgacao"] > corte

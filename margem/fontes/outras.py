@@ -94,3 +94,63 @@ def ipea(codigo: str, max_idade_horas: float = 20) -> pd.DataFrame:
     }).dropna().sort_values("data").reset_index(drop=True)
     df.to_parquet(destino, index=False)
     return df
+
+
+URL_SIDRA = "https://apisidra.ibge.gov.br/values/t/{t}/n1/all/v/{v}/p/all/c{c}/{cat}"
+URL_ONS = "https://ons-aws-prod-opendata.s3.amazonaws.com/dataset/{pasta}/{arquivo}"
+ONS = {
+    "ear": ("ear_subsistema_di", "EAR_DIARIO_SUBSISTEMA_{ano}.csv", "ear_data", "ear_verif_subsistema_percentual", 2000),
+    "carga": ("carga_energia_di", "CARGA_ENERGIA_{ano}.csv", "din_instante", "val_cargaenergiamwmed", 2000),
+    "cmo": ("cmo_se", "CMO_SEMANAL_{ano}.csv", "din_instante", "val_cmomediasemanal", 2005),
+}
+
+
+def sidra(tabela: int, variavel: int, classificacao: int, categoria: int, max_idade_horas: float = 20) -> pd.DataFrame:
+    """Série mensal do IBGE (SIDRA): data (1º dia do mês), valor."""
+    destino = caminhos.tratado("sidra") / f"{tabela}_{variavel}_{classificacao}_{categoria}.parquet"
+    if _fresco(destino, max_idade_horas):
+        return pd.read_parquet(destino)
+    r = rede.get(URL_SIDRA.format(t=tabela, v=variavel, c=classificacao, cat=categoria), timeout=120)
+    d = r.json()[1:]
+    df = pd.DataFrame({"data": pd.to_datetime([x["D3C"] for x in d], format="%Y%m"),
+                       "valor": pd.to_numeric([x["V"] for x in d], errors="coerce")}).dropna()
+    df = df.sort_values("data").reset_index(drop=True)
+    df.to_parquet(destino, index=False)
+    return df
+
+
+def ons(conjunto: str, subsistema: str, max_idade_horas: float = 20) -> pd.DataFrame:
+    """Dados abertos do ONS: EAR (% do máximo, diário), CMO (R$/MWh, semanal) e carga (MWmed).
+    Carga do SIN: soma dos subsistemas, média do mês (data = 1º dia do mês)."""
+    from datetime import date
+
+    destino = caminhos.tratado("ons") / f"{conjunto}_{subsistema}.parquet"
+    if _fresco(destino, max_idade_horas):
+        return pd.read_parquet(destino)
+    pasta, molde, col_data, col_valor, ano0 = ONS[conjunto]
+    partes = []
+    for ano in range(max(ano0, 2000), date.today().year + 1):
+        arq = molde.format(ano=ano)
+        bruto = caminhos.bruto("ons", pasta) / arq
+        try:
+            rede.baixar_arquivo(URL_ONS.format(pasta=pasta, arquivo=arq), bruto,
+                                max_idade_horas=max_idade_horas if ano >= date.today().year - 1 else None)
+        except Exception:
+            continue
+        df = pd.read_csv(bruto, sep=";", dtype=str)
+        df["id_subsistema"] = df["id_subsistema"].str.strip()
+        partes.append(df[["id_subsistema", col_data, col_valor]])
+    df = pd.concat(partes, ignore_index=True)
+    df["data"] = pd.to_datetime(df[col_data].str[:10])
+    df["valor"] = pd.to_numeric(df[col_valor].str.replace(",", "."), errors="coerce")
+    if subsistema == "SIN":
+        df = df.groupby("data", as_index=False)["valor"].sum()
+    else:
+        df = df[df["id_subsistema"] == subsistema][["data", "valor"]]
+    if conjunto == "carga":
+        df = df.set_index("data")["valor"].resample("MS").mean().dropna().reset_index()
+        # Mês incompleto não entra.
+        df = df[df["data"] < pd.Timestamp(date.today()).replace(day=1)]
+    df = df.dropna().sort_values("data").reset_index(drop=True)
+    df.to_parquet(destino, index=False)
+    return df

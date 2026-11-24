@@ -17,45 +17,67 @@ from .modelo import candidatos as C
 from .painel import familia_de
 
 CONVERSAO = {"log_pl": ("_conv_lucro", "lucro_12m", "Lucro de 12 meses (conversão do P/L)"),
-             "log_pvp": ("_conv_patrimonio", "patrimonio", "Patrimônio (conversão do P/VP)")}
+             "log_pvp": ("_conv_patrimonio", "patrimonio", "Patrimônio (conversão do P/VP)"),
+             "log_ev_ebitda": ("_conv_ebitda", "ebitda_12m", "EBITDA de 12 meses (conversão do EV/EBITDA)")}
+# Dívida líquida e minoritários entram na conversão do EV/EBITDA (subtraídos do valor da firma).
+CONV_DIVIDA = ("_conv_divida", "Dívida líquida (conversão do EV/EBITDA)")
 FAMILIAS = {"empresa": "empresa", "setor": "setor", "macro_brasil": "macro Brasil", "exterior": "exterior",
             "conversao": "empresa", "outro": "outro"}
 
 
-def _componentes(passo) -> list[tuple[str, str]]:
-    """(alvo, modelo) que compõem o candidato escolhido."""
+def _componentes(passo) -> list[tuple[str, str, bool]]:
+    """(alvo, modelo, em painel) que compõem o candidato escolhido."""
     modelo, alvo = passo.escolhido.split("|")
+    if modelo.startswith("painel_"):
+        membros = ("rn",) if modelo == "painel_rn" else C.MODELOS_BASE
+        return [(alvo, m, True) for m in membros]
     alvos = list(passo.ajustes) if alvo == "todos" else [alvo]
     if modelo == "ensemble_geral":
-        return [(a, m) for a in alvos for m in C.MODELOS_BASE]
+        return [(a, m, False) for a in alvos for m in C.MODELOS_BASE]
     membros = C.ENSEMBLES.get(modelo, (modelo,))
-    return [(a, m) for a in alvos for m in membros]
+    return [(a, m, False) for a in alvos for m in membros]
+
+
+def _ajuste(passo, a, painel):
+    return (passo.ajustes_painel if painel else passo.ajustes).get(a)
 
 
 def funcao_explicada(passo):
-    comps = [(a, m) for a, m in _componentes(passo) if a in passo.ajustes]
+    comps = [(a, m, p) for a, m, p in _componentes(passo) if _ajuste(passo, a, p) is not None]
     variaveis: list[str] = []
-    for a, _ in comps:
-        for v in passo.ajustes[a].variaveis:
-            if v not in variaveis:
+    for a, _, p in comps:
+        for v in _ajuste(passo, a, p).variaveis:
+            if v not in variaveis and not v.startswith("_e_"):
                 variaveis.append(v)
     conv = []
-    for a, _ in comps:
+    for a, _, p in comps:
         if a in CONVERSAO and CONVERSAO[a][0] not in conv:
             conv.append(CONVERSAO[a][0])
+        if a == "log_ev_ebitda" and CONV_DIVIDA[0] not in conv:
+            conv.append(CONV_DIVIDA[0])
     colunas = variaveis + conv
 
     def f(M: np.ndarray) -> np.ndarray:
         df = pd.DataFrame(M, columns=colunas)
         partes = []
-        for a, m in comps:
-            aj = passo.ajustes[a]
-            X = df[aj.variaveis].fillna(aj.medianas).to_numpy(float)
+        for a, m, p in comps:
+            aj = _ajuste(passo, a, p)
+            dx = df
+            if p:
+                dx = df.copy()
+                dummies = [v for v in aj.variaveis if v.startswith("_e_")]
+                for i, v in enumerate(dummies):
+                    dx[v] = 1.0 if i == 0 else 0.0
+            X = dx[aj.variaveis].fillna(aj.medianas).to_numpy(float)
             y = np.asarray(aj.modelos[m].predict(X), float)
-            if a in CONVERSAO:
+            if a == "log_ev_ebitda":
+                ev = np.exp(y + df["_conv_ebitda"].to_numpy(float))
+                vm = ev - df[CONV_DIVIDA[0]].to_numpy(float)
+                y = np.log(np.where(vm > 0, vm, np.nan))
+            elif a in CONVERSAO:
                 y = y + df[CONVERSAO[a][0]].to_numpy(float)
             partes.append(y)
-        return np.mean(partes, axis=0)
+        return np.nanmean(partes, axis=0)
 
     return colunas, f
 
@@ -67,6 +89,10 @@ def _matriz(base: pd.DataFrame, colunas: list[str]) -> pd.DataFrame:
             m[c] = np.log(base["lucro_12m"].where(base["lucro_12m"] > 0))
         elif c == "_conv_patrimonio":
             m[c] = np.log(base["patrimonio"].where(base["patrimonio"] > 0))
+        elif c == "_conv_ebitda":
+            m[c] = np.log(base["ebitda_12m"].where(base["ebitda_12m"] > 0))
+        elif c == CONV_DIVIDA[0]:
+            m[c] = base["divida_liquida"] + base.get("minoritarios", 0.0)
         else:
             m[c] = base[c]
     return m
@@ -77,6 +103,10 @@ def nome_preditor(v: str) -> str:
         return CONVERSAO["log_pl"][2]
     if v == "_conv_patrimonio":
         return CONVERSAO["log_pvp"][2]
+    if v == "_conv_ebitda":
+        return CONVERSAO["log_ev_ebitda"][2]
+    if v == CONV_DIVIDA[0]:
+        return CONV_DIVIDA[1]
     if v in PREDITORES_EMPRESA:
         return PREDITORES_EMPRESA[v]
     return config.catalogo_series().get(v, {}).get("nome", v)
@@ -86,7 +116,11 @@ def explicacao_preditor(v: str) -> str:
     if v == "_conv_lucro":
         return "o lucro dos últimos 12 meses, que multiplica o P/L estimado para virar preço"
     if v == "_conv_patrimonio":
-        return "o patrimônio do banco, que multiplica o P/VP estimado para virar preço"
+        return "o patrimônio da empresa, que multiplica o P/VP estimado para virar preço"
+    if v == "_conv_ebitda":
+        return "o EBITDA dos últimos 12 meses, que multiplica o EV/EBITDA estimado para virar valor da firma"
+    if v == CONV_DIVIDA[0]:
+        return "a dívida líquida, que sai do valor da firma para chegar ao valor das ações"
     if v in EXPLICACAO_EMPRESA:
         return EXPLICACAO_EMPRESA[v]
     return config.catalogo_series().get(v, {}).get("explicacao", "")
@@ -103,23 +137,25 @@ def importancia(passo, base: pd.DataFrame, data_hoje: pd.Timestamp, setor: dict,
 
     colunas, f = funcao_explicada(passo)
     treino = base[(base.index < pd.Timestamp(passo.retreino))]
-    alvo_ok = treino[[a for a in passo.ajustes]].notna().all(axis=1) if passo.ajustes else treino.index == treino.index
-    treino = treino[alvo_ok]
+    alvos_usados = sorted({a for a, _, _ in _componentes(passo)} & set(base.columns))
+    treino = treino[treino[alvos_usados].notna().all(axis=1)] if alvos_usados else treino
     M_treino = _matriz(treino, colunas)
     meds = M_treino.median()
     M_treino = M_treino.fillna(meds)
     M_hoje = _matriz(base.loc[[pd.Timestamp(data_hoje)]], colunas).fillna(meds)
-    passo_fundo = max(1, len(M_treino) // n_fundo)
+    passo_fundo = max(1, int(np.ceil(len(M_treino) / n_fundo)))
     fundo = M_treino.iloc[::passo_fundo].to_numpy(float)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         expl = shap.explainers.Permutation(f, fundo, seed=0)
         sv_treino = expl(M_treino.to_numpy(float), max_evals=2 * len(colunas) + 1, silent=True).values
         sv_hoje = expl(M_hoje.to_numpy(float), max_evals=2 * len(colunas) + 1, silent=True).values[0]
-    imp = np.abs(sv_treino).mean(axis=0)
+    # Linhas em que a conversão não fecha (valor da firma menor que a dívida, por exemplo) ficam de fora.
+    imp = np.nanmean(np.abs(sv_treino), axis=0)
+    imp = np.where(np.isfinite(imp), imp, 0.0)
     # Conferência por permutação: quanto piora o ajuste ao log do valor de mercado ao embaralhar.
-    alvo_vm = np.log(treino["valor_mercado"]).to_numpy(float)
-    base_err = float(np.mean((f(M_treino.to_numpy(float)) - alvo_vm) ** 2))
+    alvo_vm = np.log(treino["valor_mercado"].where(treino["valor_mercado"] > 0)).to_numpy(float)
+    base_err = float(np.nanmean((f(M_treino.to_numpy(float)) - alvo_vm) ** 2))
     rng = np.random.default_rng(0)
     perm = []
     for j in range(len(colunas)):
@@ -127,7 +163,7 @@ def importancia(passo, base: pd.DataFrame, data_hoje: pd.Timestamp, setor: dict,
         for _ in range(5):
             M = M_treino.to_numpy(float).copy()
             M[:, j] = rng.permutation(M[:, j])
-            aumentos.append(float(np.mean((f(M) - alvo_vm) ** 2)) - base_err)
+            aumentos.append(float(np.nanmean((f(M) - alvo_vm) ** 2)) - base_err)
         perm.append(max(0.0, float(np.mean(aumentos))))
     perm = np.array(perm)
     tab = pd.DataFrame({
@@ -140,7 +176,7 @@ def importancia(passo, base: pd.DataFrame, data_hoje: pd.Timestamp, setor: dict,
         "valor_hoje": M_hoje.iloc[0].to_numpy(float),
         "mediana_treino": meds.to_numpy(float),
     }).sort_values("importancia", ascending=False).reset_index(drop=True)
-    tab["direcao"] = np.where(tab["shap_hoje"] >= 0, "para cima", "para baixo")
+    tab["direcao"] = np.where(tab["shap_hoje"].isna(), "—", np.where(tab["shap_hoje"] >= 0, "para cima", "para baixo"))
     tab["explicacao"] = [explicacao_preditor(v) for v in tab["variavel"]]
     rk = tab[["importancia", "importancia_permutacao"]].rank()
     tab.attrs["concordancia"] = float(rk.corr().iloc[0, 1]) if len(tab) > 2 else np.nan

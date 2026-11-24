@@ -92,9 +92,11 @@ def _docs_novos_cvm(analises: dict[str, dict]) -> dict[str, str]:
     for tipo in ("ITR", "DFP"):
         for a in (ano - 1, ano):
             try:
-                x = cvm.extrair(sorted(set(cnpjs.values())), tipo, a, max_idade_horas=config.cfg()["atualizacao"]["cvm_idade_max_horas"])["indice"]
-                if x is not None and len(x):
-                    docs.append(x.assign(TIPO=tipo))
+                por_empresa = cvm.extrair(sorted(set(cnpjs.values())), tipo, a,
+                                          max_idade_horas=config.cfg()["atualizacao"]["cvm_idade_max_horas"])
+                for x in (p["indice"] for p in por_empresa.values()):
+                    if x is not None and len(x):
+                        docs.append(x.assign(TIPO=tipo))
             except Exception:
                 continue
     if not docs:

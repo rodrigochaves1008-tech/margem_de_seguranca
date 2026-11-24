@@ -15,8 +15,8 @@ for _var in (
 ):
     _os.environ.setdefault(_var, "1")
 
-VERSAO_CODIGO = "0.1.0"
+VERSAO_CODIGO = "0.2.0"
 # Mude só quando a mudança alterar as estimativas (ver CLAUDE.md, "Ranking dos ativos analisados").
-VERSAO_MODELO_BASE = "1.0.0"
+VERSAO_MODELO_BASE = "1.1.0"
 
 AVISO = "Estimativa de modelo, não é recomendação de investimento."
