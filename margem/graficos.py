@@ -45,7 +45,7 @@ def montar(diario: pd.DataFrame, desd: pd.DataFrame, prov: pd.DataFrame, mensal:
         "desde": d["data"].min().strftime("%Y-%m-%d") if len(d) else None,
         "confiavel": bool(analise.get("estimativa")),
         "eventos": [e for e in eventos if pd.Timestamp(e["data"]) > ini and pd.Timestamp(e["data"]) <= ate],
-        "justo": [], "historico": [], "tracejado": [], "cenarios": [],
+        "justo": [], "historico": [], "tracejado": [],
     }
     if not analise.get("estimativa"):
         return out

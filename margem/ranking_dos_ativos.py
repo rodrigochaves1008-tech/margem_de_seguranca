@@ -251,7 +251,6 @@ def escrever_tela_ativo(t: str, d: dict, reg: dict | None, resultado: dict, fora
         "link_relatorio": "../" + a["relatorio"] if a.get("relatorio") else "#",
         "posicao_texto": posicao_texto(t, resultado, fora),
         "marcas": (reg or {}).get("marcas", []) if not fora else [{"texto": "fora do ranking dos ativos", "alerta": True, "dica": ""}],
-        "tem_cenarios": bool(dg.get("cenarios")),
         "legenda": legenda(a, dg),
     }
     if a.get("estimativa"):
@@ -273,6 +272,9 @@ def legenda(a: dict, dg: dict) -> str:
     if desde:
         partes.append(f"Dados desde {formatos.data(desde)}.")
     partes.append("Preço: fechamento diário ajustado só por desdobramentos e grupamentos.")
+    if dg.get("eventos"):
+        partes.append("Linhas verticais: pontilhadas para eventos (desdobramentos, grupamentos e mudanças de regras) e "
+                      "tracejadas para quebras estruturais detectadas (diagnóstico; detalhes no relatório).")
     if a.get("estimativa"):
         partes.append(
             "Preço justo: estimativas walk-forward simuladas com a versão do modelo da análise mais recente "

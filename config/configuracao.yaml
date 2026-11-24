@@ -75,9 +75,23 @@ valuation:
   premio_risco_acoes: 0.05          # prêmio sobre a NTN-B longa no custo de capital
   crescimento_real_longo_prazo: 0.01
   bazin_taxa: 0.06
+  # Decisão 5 do usuário: a análise usa só a própria empresa. true liga a comparação com os múltiplos
+  # medianos dos pares do setor (listas em setores.yaml), que nunca entram no modelo.
+  comparar_com_pares: false
   graham_fator: 22.5
 
 atualizacao:
   cvm_idade_max_horas: 12           # arquivos da CVM do ano corrente
   precos_idade_max_horas: 4
   macro_idade_max_horas: 20
+
+
+# Mudanças estruturais (Fase 3): só diagnóstico, nada entra no preço justo.
+estruturais:
+  preditores_na_relacao: 5          # maiores preditores de hoje no teste da relação com o preço
+  meses_min_segmento_relacao: 36    # trecho mínimo entre quebras na relação
+  meses_min_segmento_preco: 24      # trecho mínimo no retorno, na volatilidade e nas séries
+  quebras_max: 3
+  meses_min_lado_evento: 24         # teste na data do evento só com 24 meses antes e depois
+  defasagens_hac: 12                # erros de Newey-West no teste da data do evento
+  validade_pesquisa_dias: 7         # pesquisa na web mais velha que isso aparece como anterior à rodada

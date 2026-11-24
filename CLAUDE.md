@@ -93,9 +93,15 @@ Notas técnicas aprendidas na Fase 1:
    o método inteiro para a empresa (as estimativas mensais já guardadas só são reaproveitadas se a
    versão do modelo não mudou, como manda a especificação). Substitui o item "histórico curto → painel"
    da especificação e do plano: sem dados suficientes, o ativo fica sem estimativa confiável, com o motivo.
+   A comparação com os múltiplos dos pares no valuation tradicional também ficou desligada por padrão
+   (`valuation.comparar_com_pares: false` em `config/configuracao.yaml`), para a análise usar só a empresa.
 6. Uso dos créditos (24/11/2026): ao chegar em 50% da janela de 5 horas, pausar e voltar sozinho quando
    ela renovar; ao chegar em 50% do limite semanal, pausar e voltar só quando o semanal renovar.
    Procedimento na seção "Uso dos créditos".
+7. Sem projeções de futuro (24/11/2026): sai a projeção do preço justo em 12 meses por cenários (base pelo
+   Focus, otimista e pessimista). A seção 5 do relatório passa a ser só "Cenário macro" (dados já
+   divulgados) e a tela não tem a opção de cenários. Nas mudanças estruturais, o efeito esperado fica só
+   na direção (positivo, negativo ou incerto), com a explicação, sem números.
 
 Os itens 2 a 4 são as propostas do plano, adotadas sem objeção do usuário. Ele pode mudá-las.
 

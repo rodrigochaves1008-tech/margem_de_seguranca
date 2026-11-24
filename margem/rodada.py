@@ -10,7 +10,7 @@ from datetime import date, datetime
 import numpy as np
 import pandas as pd
 
-from . import (AVISO, avaliacao, caminhos, config, formatos, graficos, historico, macro, painel,
+from . import (AVISO, avaliacao, caminhos, config, estruturais, formatos, graficos, historico, macro, painel,
                preditores, ranking_dos_ativos, valuation)
 from .fontes import cvm as fonte_cvm
 from .modelo import candidatos as C
@@ -73,10 +73,13 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
     dados = painel.carregar(ticker)
     datas = painel.datas_da_base(dados, hoje)
     base = painel.montar(dados, datas)
-    # Pares do setor: só para a comparação de múltiplos no valuation tradicional; não entram no modelo.
-    pares, notas_pares = painel.carregar_pares(dados, progresso)
-    dados.notas += notas_pares
-    bases_pares = {p: painel.montar(d, datas) for p, d in pares.items()}
+    # Pares do setor: nunca entram no modelo. Na comparação de múltiplos do valuation, só se ligada na
+    # configuração (decisão 5: por padrão, a análise usa só a própria empresa).
+    pares, bases_pares = {}, {}
+    if cfg.get("valuation", {}).get("comparar_com_pares"):
+        pares, notas_pares = painel.carregar_pares(dados, progresso)
+        dados.notas += notas_pares
+        bases_pares = {p: painel.montar(d, datas) for p, d in pares.items()}
     versao = config.versao_modelo(info["setor"])
     anteriores, escolhas_ant = _ler_anteriores(ticker, versao)
     progresso(f"{ticker}: walk-forward ({'só os meses novos' if anteriores is not None else 'completo, pode levar alguns minutos'})")
@@ -101,23 +104,29 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
     sinais = avaliacao.margem_como_sinal(jan, base, dados.precos.diario, desd, dados.precos.proventos, cfg) if len(jan) else []
     progresso(f"{ticker}: ranking dos preditores de 1, 2 e 3 anos atrás")
     historia_preditores = _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, imp)
+    progresso(f"{ticker}: mudanças estruturais (quebras e eventos)")
+    estr = estruturais.analisar(ticker, info["setor"], base, dados.precos.diario, desd, res.passos_hoje, imp, hoje, cfg)
+    if estr["pesquisa"].get("situacao") != "ok":
+        progresso(f"{ticker}: aviso: sem pesquisa na web das mudanças estruturais feita para esta rodada "
+                  f"(saida/ultima_rodada/{ticker}/mudancas_estruturais.json)")
 
     stamp = agora.strftime("%Y-%m-%d_%H%M")
     pasta_rel = caminhos.pasta_relatorios(ticker) / stamp
     rel_relativo = f"relatorios/{ticker}/{stamp}/relatorio.html"
     analise = _montar_analise(ticker, info, setor, versao, agora, h, aval, imp, dados, linha_hoje, rel_relativo)
 
-    _salvar_ultima_rodada(ticker, analise, res, dados, imp)
+    _salvar_ultima_rodada(ticker, analise, res, dados, imp, estr)
     progresso(f"{ticker}: atualização rápida dos demais ativos")
     foto = ranking_dos_ativos.atualizar(novas={ticker: analise}, progresso=progresso)
     ctx = _contexto_relatorio(ticker, info, setor, analise, aval, imp, val, bt, jan, res, base, linha_hoje,
                               dados, foto, agora, hoje, cfg)
     ctx.update(_contexto_fase2(sinais, historia_preditores, pares, setor))
+    ctx.update(_contexto_estruturais(estr))
     dg = graficos.montar(dados.precos.diario, desd, dados.precos.proventos, mensal, analise,
                          historico.do_ativo(ticker), pd.Timestamp(h["data_preco"]), tracejado=False,
-                         eventos=graficos.eventos_de_preco(desd))
+                         eventos=graficos.eventos_de_preco(desd) + estr["marcas"])
     paginas.escrever_relatorio(pasta_rel, ctx, dg)
-    _copiar_dados(pasta_rel, base, res, dados, imp, bt, val, foto, analise)
+    _copiar_dados(pasta_rel, base, res, dados, imp, bt, val, foto, analise, estr)
     if ticker in historico.fora_do_ranking():
         historico.registrar_fora(ticker, "volta", "rodado de novo")
     historico.registrar(_linha_historico(analise))
@@ -262,7 +271,7 @@ def _linha_historico(a: dict) -> dict:
     return {k: a.get(k) for k in campos}
 
 
-def _salvar_ultima_rodada(ticker, analise, res, dados, imp) -> None:
+def _salvar_ultima_rodada(ticker, analise, res, dados, imp, estr) -> None:
     ur = caminhos.pasta_ultima_rodada(ticker)
     (ur / "analise.json").write_text(json.dumps(analise, ensure_ascii=False, indent=1), encoding="utf-8")
     if len(res.mensal):
@@ -274,8 +283,8 @@ def _salvar_ultima_rodada(ticker, analise, res, dados, imp) -> None:
     dados.precos.proventos.to_parquet(ur / "proventos.parquet", index=False)
     if imp is not None:
         imp.drop(columns=["explicacao"], errors="ignore").to_parquet(ur / "preditores.parquet", index=False)
-    (ur / "eventos.json").write_text(json.dumps(graficos.eventos_de_preco(dados.precos.desdobramentos),
-                                                ensure_ascii=False), encoding="utf-8")
+    eventos = graficos.eventos_de_preco(dados.precos.desdobramentos) + estr["marcas"]
+    (ur / "eventos.json").write_text(json.dumps(eventos, ensure_ascii=False), encoding="utf-8")
     h = res.hoje
     (ur / "hoje_candidatos.json").write_text(json.dumps(_json_ok({
         "data": h.get("data"), "retreino": h.get("retreino"), "escolhido": h.get("escolhido"),
@@ -289,7 +298,7 @@ def _salvar_ultima_rodada(ticker, analise, res, dados, imp) -> None:
     p.write_text(json.dumps(sorted(juntos, key=lambda v: (v["data"], v["alvo"])), ensure_ascii=False), encoding="utf-8")
 
 
-def _copiar_dados(pasta, base, res, dados, imp, bt, val, foto, analise) -> None:
+def _copiar_dados(pasta, base, res, dados, imp, bt, val, foto, analise, estr) -> None:
     d = pasta / "dados"
     (d / "series").mkdir(parents=True, exist_ok=True)
     base.to_parquet(d / "base_mensal.parquet")
@@ -315,6 +324,11 @@ def _copiar_dados(pasta, base, res, dados, imp, bt, val, foto, analise) -> None:
     (d / "foto_ranking_dos_ativos.json").write_text(json.dumps(_json_ok(foto_json), ensure_ascii=False, indent=1), encoding="utf-8")
     (d / "valuation.json").write_text(json.dumps(_json_ok(val), ensure_ascii=False, indent=1), encoding="utf-8")
     (d / "analise.json").write_text(json.dumps(analise, ensure_ascii=False, indent=1), encoding="utf-8")
+    (d / "estruturais.json").write_text(json.dumps(_json_ok(estr), ensure_ascii=False, indent=1), encoding="utf-8")
+    pesq = caminhos.pasta_ultima_rodada(analise["ticker"]) / "mudancas_estruturais.json"
+    if pesq.exists():
+        shutil.copyfile(pesq, d / "mudancas_estruturais.json")
+    shutil.copyfile(caminhos.CONFIG / "eventos.yaml", d / "eventos.yaml")
     shutil.copyfile(caminhos.CONFIG / "configuracao.yaml", d / "configuracao.yaml")
     shutil.copyfile(caminhos.CONFIG / "setores.yaml", d / "setores.yaml")
     shutil.copyfile(caminhos.CONFIG / "series.yaml", d / "series.yaml")
@@ -494,7 +508,7 @@ def _contexto_relatorio(ticker, info, setor, a, aval, imp, val, bt, jan, res, ba
         "faixa_margem": faixa, "classe_margem": classe, "erro_tipico": et, "supera": confiavel and abs(margem) > et,
         "potencial": V / preco - 1 if confiavel else np.nan,
         "resumo": resumo[:5], "texto_margem": texto_margem,
-        "legenda": ranking_dos_ativos.legenda(a, {"desde": dados.precos.diario["data"].max() - pd.DateOffset(years=10)
+        "legenda": ranking_dos_ativos.legenda(a, {"eventos": True, "desde": dados.precos.diario["data"].max() - pd.DateOffset(years=10)
                                                    if dados.precos.diario["data"].min() < dados.precos.diario["data"].max() - pd.DateOffset(years=10)
                                                    else dados.precos.diario["data"].min()}),
         "foto": {"data_precos": foto.get("data_precos"), "sem": foto.get("sem", []),
@@ -502,11 +516,8 @@ def _contexto_relatorio(ticker, info, setor, a, aval, imp, val, bt, jan, res, ba
         "preditores": prds, "explicacoes": explicacoes, "concordancia": concordancia, "mudanca_preditores": mudanca,
         "modelo_escolhido": nome_modelo,
         "macro": macro_rows,
-        "nota_projecao": "Projeção do preço justo em 12 meses por cenários (base pelo Boletim Focus, otimista e "
-                         "pessimista, variando juros, câmbio e atividade): entra na Fase 3.",
-        "nota_estruturais": "Testes de quebras estruturais, marcação de eventos (reforma tributária do consumo, IR sobre "
-                            "dividendos e JCP, novas regras de provisão dos bancos, regulação, controle estatal) e pesquisa "
-                            "das mudanças dos últimos 24 meses com fonte e data: entram na Fase 3.",
+        "nota_macro": "Valores já divulgados na data da análise e 12 meses antes. Sem projeções para o futuro, por "
+                      "decisão do usuário (24/11/2026).",
         "texto_backtest": texto_bt, "backtest": bt_rows,
         "janela_backtest": (f"{formatos.mes(jan.index.min())} a {formatos.mes(jan.index.max())}" if len(jan) else "—"),
         "cobertura": aval.get("cobertura_faixa"), "meses_com_faixa": aval.get("meses_com_faixa"),
@@ -520,6 +531,75 @@ def _contexto_relatorio(ticker, info, setor, a, aval, imp, val, bt, jan, res, ba
         "limitacoes": limitacoes, "cobertura_series": [precos_cob, cvm_cob] + cob,
         "metodologia": _metodologia(setor, cfg),
     }
+
+
+def _contexto_estruturais(estr: dict) -> dict:
+    p = estr.get("pesquisa") or {}
+    if p.get("situacao") == "ausente":
+        nota = ("A pesquisa na web das mudanças dos últimos 24 meses não foi feita para esta rodada: a tabela traz só os "
+                "eventos de config/eventos.yaml.")
+    else:
+        nota = (f"Pesquisa na web de {formatos.data(p['data'])}: mudanças dos últimos 24 meses e as já aprovadas, com "
+                "fonte e data" + ("." if p.get("situacao") == "ok" else f", feita {p['idade_dias']} dias antes desta rodada."))
+    classes = {"positivo": "pos", "negativo": "neg"}
+    linhas = []
+    for e in estr.get("eventos", []):
+        t = e.get("teste") or {}
+        if t.get("testavel"):
+            teste = (f"F = {formatos.num(t['F'], 2)}; p = {formatos.num(t['p_valor'], 2)}: "
+                     + ("a relação com o preço mudou depois da data" if t["p_valor"] < 0.05 else "sem mudança detectada"))
+        elif t.get("futuro"):
+            teste = "data futura"
+        elif "n_depois" in t:
+            lado = "depois" if t["n_depois"] < t["n_antes"] else "antes"
+            teste = f"poucos meses {lado} da data ({min(t['n_depois'], t['n_antes'])}) para testar"
+        else:
+            teste = "sem teste (relação não estimada)"
+        vig = pd.Timestamp(e["vigencia"])
+        linhas.append({
+            "data": pd.Timestamp(e["data"]), "titulo": e["titulo"], "explicacao": e.get("explicacao"),
+            "vigencia_txt": (f"{e.get('situacao', '')}; vale a partir de {formatos.data(vig)}".strip("; ")
+                             if e["vigencia"] != e["data"] else e.get("situacao", "")),
+            "tipo": estruturais.TIPOS.get(e["tipo"], e["tipo"]), "efeito": e["efeito_esperado"],
+            "classe": classes.get(e["efeito_esperado"], "neu"), "capta": e["capta"], "teste": teste,
+            "fontes": [{"url": f.get("url"), "titulo": f.get("titulo") or f.get("url"),
+                        "data": pd.Timestamp(f["data"]) if f.get("data") else None} for f in e.get("fontes", [])]})
+    textos = []
+    rel = estr.get("relacao")
+    if rel:
+        qs = rel["quebras"]
+        txt = (f"Relação entre o valor de mercado e os {len(rel['nomes'])} maiores preditores de hoje ({', '.join(rel['nomes'])}), "
+               f"de {formatos.mes(rel['inicio'])} a {formatos.mes(rel['fim'])}: ")
+        txt += ("nenhuma quebra detectada" if not qs else
+                "quebras em " + "; ".join(f"{formatos.mes(q['data'])} (mudou mais o peso de {' e '.join(q['mudaram'])})"
+                                          for q in qs))
+        cp = rel["cusum"]["p_valor"]
+        txt += (f". CUSUM: p = {formatos.num(cp, 2)} ("
+                + ("coeficientes instáveis no tempo" if cp < 0.05 else "sem sinal de instabilidade") + ").")
+        textos.append(txt)
+    else:
+        textos.append("Relação entre preditores e preço: histórico curto demais para o teste.")
+    pr = estr.get("preco")
+    if pr:
+        def trechos(lista):
+            return " → ".join(f"{formatos.pct(x['valor'], 0)} ({formatos.mes(x['inicio'])} a {formatos.mes(x['fim'])})"
+                              for x in lista)
+        txt = f"Preço (retornos mensais, de {formatos.mes(pr['inicio'])} a {formatos.mes(pr['fim'])}): retorno médio ao ano "
+        txt += ("sem quebra" if not pr["quebras_media"] else "com quebra: " + trechos(pr["trechos_media"]))
+        txt += "; volatilidade ao ano " + ("sem quebra" if not pr["quebras_volatilidade"] else
+                                          "com quebra: " + trechos(pr["trechos_volatilidade"]))
+        cp = pr["cusum"]["p_valor"]
+        txt += f". CUSUM do retorno: p = {formatos.num(cp, 2)}."
+        textos.append(txt)
+    series = [{"nome": s["nome"], "datas": ", ".join(formatos.mes(d) for d in s["quebras"]) or "sem mudança de patamar"}
+              for s in estr.get("series", [])]
+    return {"nota_pesquisa": nota, "mudancas": linhas, "textos_quebras": textos, "quebras_series": series,
+            "nota_quebras": (
+                "Diagnóstico, só para leitura: as quebras são estimadas com o período todo e não entram no preço justo "
+                "nem na escolha do modelo. O walk-forward já refaz o modelo a cada divulgação, só com os dados até a "
+                "data; uma mudança só aparece no modelo quando chega aos dados. O teste na data do evento compara a "
+                "relação entre o valor de mercado e os maiores preditores antes e depois da data (24 meses ou mais de "
+                "cada lado). \"O modelo capta?\" diz se o modelo de hoje usa os indicadores por onde a mudança age.")}
 
 
 def _mudanca_preditores(res, hoje, alvo) -> str:
@@ -591,7 +671,9 @@ def _limitacoes(dados, aval, setor) -> list[str]:
                    "marginal de operação (CMO) do ONS entra no lugar do PLD, e o GSF fica de fora.")
     lim.append("Valor de mercado: preço do ticker analisado × total de ações (ON + PN). Em units, o preço é dividido "
                "pelo número de ações da unit.")
-    lim.append("Fase 3 (ainda não entra): mudanças estruturais e projeção por cenários.")
+    lim.append("Mudanças estruturais: os testes de quebra são diagnósticos, estimados com o período todo, e não entram "
+               "no preço justo; a data de uma quebra tem incerteza de alguns meses. Sem projeções para o futuro "
+               "(decisão do usuário de 24/11/2026).")
     return lim
 
 
@@ -615,8 +697,17 @@ def _metodologia(setor, cfg) -> list[str]:
         "importância de permutação.",
         "Modelo próprio do ativo: cada análise refaz o método inteiro só com o histórico da empresa (preço e "
         "indicadores divulgados na CVM) e as variáveis de mercado, macro e do setor; nenhum dado de outra empresa "
-        "entra no treino nem na escolha do modelo. Os pares do setor (config/setores.yaml) aparecem só na checagem "
-        "com múltiplos.",
+        "entra no treino nem na escolha do modelo. "
+        + ("Os pares do setor (config/setores.yaml) aparecem só na checagem com múltiplos."
+           if cfg.get("valuation", {}).get("comparar_com_pares") else
+           "A checagem com valuation tradicional também usa só a empresa: a comparação com os múltiplos dos pares "
+           "está desligada (valuation.comparar_com_pares em config/configuracao.yaml)."),
+        "Mudanças estruturais: quebras pelo método de Bai e Perron (mínimos quadrados em partes, número de quebras "
+        "pelo critério LWZ, trechos de pelo menos "
+        f"{cfg.get('estruturais', {}).get('meses_min_segmento_relacao', 36)} meses) na relação entre o valor de mercado "
+        "e os maiores preditores de hoje, no retorno médio e na volatilidade do preço e no patamar das séries desses "
+        "preditores; CUSUM dos resíduos (Ploberger e Krämer); teste de Chow com erros de Newey-West na data de cada "
+        "evento. Eventos de config/eventos.yaml e da pesquisa na web da rodada, com fonte e data.",
         "Fontes: CVM dados abertos (DFP, ITR, FRE); B3 (COTAHIST); Yahoo Finance (proventos, desdobramentos, índices); "
         "Banco Central (SGS e Boletim Focus); Tesouro Transparente (Tesouro Direto); FRED; Ipeadata.",
     ]
