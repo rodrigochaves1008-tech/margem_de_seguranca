@@ -34,50 +34,9 @@ def converter(alvo: str, yhat: np.ndarray, linhas: pd.DataFrame) -> np.ndarray:
     return vm / linhas["acoes"].to_numpy(float)
 
 
-ALVOS_PAINEL = ("log_pl", "log_pvp", "log_ev_ebitda")
-MODELOS_PAINEL = {"painel_rn": "rn", "painel_todos": "ensemble_todos"}
-
-
-def nomes_candidatos(alvos: list[str], com_painel: bool = False) -> list[str]:
+def nomes_candidatos(alvos: list[str]) -> list[str]:
     nomes = [f"{m}|{a}" for a in alvos for m in list(C.MODELOS_BASE) + list(C.ENSEMBLES)]
-    nomes += ["ensemble_geral|todos"]
-    if com_painel:
-        nomes += [f"{m}|{a}" for a in alvos if a in ALVOS_PAINEL for m in MODELOS_PAINEL]
-    return nomes
-
-
-def _painel_treino(base: pd.DataFrame, pares: dict, ticker: str, ate: pd.Timestamp) -> pd.DataFrame:
-    """Linhas do ativo e dos pares com data < `ate`, ordenadas por data (efeito fixo por empresa)."""
-    partes = []
-    for t, b in [(ticker, base)] + sorted(pares.items()):
-        x = b[b.index < ate].copy()
-        x["_empresa"] = t
-        partes.append(x)
-    df = pd.concat(partes).sort_index(kind="mergesort")
-    for t in [ticker] + sorted(pares):
-        df[f"_e_{t}"] = (df["_empresa"] == t).astype(float)
-    return df
-
-
-def _com_dummies(linhas: pd.DataFrame, ticker: str, pares: dict) -> pd.DataFrame:
-    x = linhas.copy()
-    for t in [ticker] + sorted(pares):
-        x[f"_e_{t}"] = 1.0 if t == ticker else 0.0
-    return x
-
-
-def _ajustar_painel(base, pares, ticker, ate, alvos, candidatas_vars, cfg_m) -> dict:
-    if not pares:
-        return {}
-    df = _painel_treino(base, pares, ticker, ate)
-    fixas = [f"_e_{t}" for t in [ticker] + sorted(pares)]
-    out = {}
-    for a in alvos:
-        if a in ALVOS_PAINEL:
-            aj = C.ajustar(df, a, candidatas_vars, cfg_m, fixas=fixas, grupos_col="_empresa")
-            if aj is not None:
-                out[a] = aj
-    return out
+    return nomes + ["ensemble_geral|todos"]
 
 
 @dataclass
@@ -87,7 +46,6 @@ class Passo:
     ajustes: dict          # alvo -> Ajuste
     escolhido: str
     pontuacoes: dict
-    ajustes_painel: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -99,15 +57,8 @@ class Resultado:
     variaveis_por_retreino: list = field(default_factory=list)
 
 
-def _todas_previsoes(ajustes: dict, linhas: pd.DataFrame, alvos: list[str], ajustes_painel: dict | None = None,
-                     ticker: str | None = None, pares: dict | None = None) -> dict[str, np.ndarray]:
+def _todas_previsoes(ajustes: dict, linhas: pd.DataFrame, alvos: list[str]) -> dict[str, np.ndarray]:
     out: dict[str, np.ndarray] = {}
-    if ajustes_painel:
-        ld = _com_dummies(linhas, ticker, pares or {})
-        for a, aj in ajustes_painel.items():
-            pr = C.prever(aj, ld)
-            for nome, m in MODELOS_PAINEL.items():
-                out[f"{nome}|{a}"] = converter(a, pr[m], linhas)
     logs_base = []
     for a in alvos:
         aj = ajustes.get(a)
@@ -190,10 +141,9 @@ def datas_retreino(base: pd.DataFrame, divulgacoes: pd.Series) -> set[pd.Timesta
 def rodar(base: pd.DataFrame, alvos: list[str], candidatas_vars: list[str], cfg: dict,
           divulgacoes: pd.Series, desd: pd.DataFrame, ate: pd.Timestamp,
           anteriores: pd.DataFrame | None = None, escolhas_anteriores: pd.DataFrame | None = None,
-          progresso=print, pares: dict | None = None, ticker: str = "ATIVO") -> Resultado:
-    """`pares`: bases mensais point-in-time dos pares do setor (ticker → base); com elas, entram os
-    candidatos em painel (ativo + pares, efeito fixo por empresa)."""
-    pares = {t: b for t, b in (pares or {}).items() if t != ticker}
+          progresso=print) -> Resultado:
+    """Modelos só do próprio ativo: o histórico dos indicadores da empresa e as variáveis de mercado,
+    macro e do setor. Nenhum dado de outra empresa entra no treino."""
     cfg_m = cfg["modelo"]
     cfg_conf = cfg["estimativa_confiavel"]
     ate = pd.Timestamp(ate).normalize()
@@ -201,7 +151,7 @@ def rodar(base: pd.DataFrame, alvos: list[str], candidatas_vars: list[str], cfg:
     meses = [d for d in base.index if d == (d + pd.offsets.MonthEnd(0)).normalize() and d <= ate]
     hoje_e_fim_de_mes = bool(meses) and meses[-1] == ate
     retreinos = datas_retreino(base, divulgacoes)
-    candidatos = nomes_candidatos(alvos, com_painel=bool(pares))
+    candidatos = nomes_candidatos(alvos)
     preco_mensal = base.loc[meses, "preco"]
 
     # Retomada: reaproveita os meses já calculados com a mesma versão do modelo, refazendo a partir
@@ -232,25 +182,20 @@ def rodar(base: pd.DataFrame, alvos: list[str], candidatas_vars: list[str], cfg:
             ajustes = {a: C.ajustar(treino, a, candidatas_vars, cfg_m) for a in alvos}
             ajustes = {a: aj for a, aj in ajustes.items() if aj is not None}
             if ajustes:
-                aj_painel = _ajustar_painel(base, pares, ticker, m, alvos, candidatas_vars, cfg_m)
                 escolhido, pont = escolher(m, previsoes, preco_mensal, desd, cfg_m["escolha"], candidatos)
-                passo = Passo(data=m, retreino=m, ajustes=ajustes, escolhido=escolhido, pontuacoes=pont,
-                              ajustes_painel=aj_painel)
+                passo = Passo(data=m, retreino=m, ajustes=ajustes, escolhido=escolhido, pontuacoes=pont)
                 escolhas_rows.append({"data": m, "escolhido": escolhido,
                                       "pontuacao": pont.get(escolhido, np.nan), "n_resultados": len(pont),
                                       "n_treino": max(aj.n_treino for aj in ajustes.values())})
                 for a, aj in ajustes.items():
                     variaveis_log.append({"data": m, "alvo": a, "variaveis": aj.variaveis})
-                for a, aj in aj_painel.items():
-                    variaveis_log.append({"data": m, "alvo": f"painel:{a}",
-                                          "variaveis": [v for v in aj.variaveis if not v.startswith("_e_")]})
                 feitos += 1
                 if progresso and (feitos % 5 == 0 or feitos == total_retreinos):
                     progresso(f"    retreinos: {feitos} de {total_retreinos} ({m:%m/%Y})")
         if passo is None:
             continue
         linha = base.loc[[m]]
-        vs = _todas_previsoes(passo.ajustes, linha, alvos, passo.ajustes_painel, ticker, pares)
+        vs = _todas_previsoes(passo.ajustes, linha, alvos)
         reg = {"data": m, "preco": float(linha["preco"].iloc[0]), "retreino": passo.retreino,
                "escolhido": passo.escolhido}
         for c in candidatos:
@@ -274,13 +219,11 @@ def rodar(base: pd.DataFrame, alvos: list[str], candidatas_vars: list[str], cfg:
             treino = base[base.index < ate]
             ajustes = {a: C.ajustar(treino, a, candidatas_vars, cfg_m) for a in alvos}
             ajustes = {a: aj for a, aj in ajustes.items() if aj is not None}
-            aj_painel = _ajustar_painel(base, pares, ticker, ate, alvos, candidatas_vars, cfg_m)
             escolhido, pont = escolher(ate, previsoes, preco_mensal, desd, cfg_m["escolha"], candidatos)
-            passo_hoje = Passo(data=ate, retreino=ate, ajustes=ajustes, escolhido=escolhido, pontuacoes=pont,
-                               ajustes_painel=aj_painel)
+            passo_hoje = Passo(data=ate, retreino=ate, ajustes=ajustes, escolhido=escolhido, pontuacoes=pont)
     if passo_hoje is not None:
         linha = base.loc[[ate]]
-        vs = _todas_previsoes(passo_hoje.ajustes, linha, alvos, passo_hoje.ajustes_painel, ticker, pares)
+        vs = _todas_previsoes(passo_hoje.ajustes, linha, alvos)
         V = float(vs.get(passo_hoje.escolhido, [np.nan])[0])
         hoje.update({
             "preco": float(linha["preco"].iloc[0]), "data_preco": linha["data_preco"].iloc[0],
@@ -315,21 +258,13 @@ def _completar_faixa(mensal: pd.DataFrame, minimo: int) -> pd.DataFrame:
 def _variacao_sementes(passo: Passo, linha: pd.DataFrame) -> float:
     """Coeficiente de variação do preço justo entre as sementes da rede neural (só checagem)."""
     modelo, alvo = passo.escolhido.split("|")
-    usa_rn = modelo in ("rn", "ens_rn_ridge", "ens_rn_gb", "ensemble_todos", "ensemble_geral", "painel_rn", "painel_todos")
-    if not usa_rn:
+    if modelo not in ("rn", "ens_rn_ridge", "ens_rn_gb", "ensemble_todos", "ensemble_geral"):
         return 0.0
-    painel = modelo.startswith("painel_")
-    ajustes = passo.ajustes_painel if painel else passo.ajustes
     cvs = []
-    for a, aj in ajustes.items():
+    for a, aj in passo.ajustes.items():
         if alvo != "todos" and a != alvo:
             continue
-        lx = linha.copy()
-        if painel:
-            dummies = [v for v in aj.variaveis if v.startswith("_e_")]
-            for i, v in enumerate(dummies):
-                lx[v] = 1.0 if i == 0 else 0.0
-        X = lx[aj.variaveis].fillna(aj.medianas).to_numpy(float)
+        X = linha[aj.variaveis].fillna(aj.medianas).to_numpy(float)
         por_semente = aj.modelos["rn"].prever_por_semente(X)[:, 0]
         v = converter(a, por_semente, pd.concat([linha] * len(por_semente)))
         v = v[np.isfinite(v)]
@@ -340,15 +275,12 @@ def _variacao_sementes(passo: Passo, linha: pd.DataFrame) -> float:
 
 
 def refazer_passo(base: pd.DataFrame, r: pd.Timestamp, alvos: list[str], candidatas_vars: list[str], cfg: dict,
-                  escolhido: str, pares: dict | None = None, ticker: str = "ATIVO") -> Passo | None:
+                  escolhido: str) -> Passo | None:
     """Refaz os ajustes de um retreino passado (determinístico: igual ao original), para explicar
     o modelo daquela data (mudança do ranking dos preditores)."""
-    cfg_m = cfg["modelo"]
-    pares = {t: b for t, b in (pares or {}).items() if t != ticker}
     treino = base[base.index < r]
-    ajustes = {a: C.ajustar(treino, a, candidatas_vars, cfg_m) for a in alvos}
+    ajustes = {a: C.ajustar(treino, a, candidatas_vars, cfg["modelo"]) for a in alvos}
     ajustes = {a: aj for a, aj in ajustes.items() if aj is not None}
     if not ajustes:
         return None
-    aj_painel = _ajustar_painel(base, pares, ticker, r, alvos, candidatas_vars, cfg_m) if escolhido.startswith("painel_") else {}
-    return Passo(data=r, retreino=r, ajustes=ajustes, escolhido=escolhido, pontuacoes={}, ajustes_painel=aj_painel)
+    return Passo(data=r, retreino=r, ajustes=ajustes, escolhido=escolhido, pontuacoes={})

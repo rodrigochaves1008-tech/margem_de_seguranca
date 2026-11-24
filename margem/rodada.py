@@ -73,6 +73,7 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
     dados = painel.carregar(ticker)
     datas = painel.datas_da_base(dados, hoje)
     base = painel.montar(dados, datas)
+    # Pares do setor: só para a comparação de múltiplos no valuation tradicional; não entram no modelo.
     pares, notas_pares = painel.carregar_pares(dados, progresso)
     dados.notas += notas_pares
     bases_pares = {p: painel.montar(d, datas) for p, d in pares.items()}
@@ -82,7 +83,7 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
     candidatas = [v for fam in painel.preditores_do_setor(setor).values() for v in fam]
     desd = dados.precos.desdobramentos
     res = WF.rodar(base, setor["alvos"], candidatas, cfg, dados.cvm["documentos"]["divulgacao"], desd, hoje,
-                   anteriores, escolhas_ant, progresso=progresso, pares=bases_pares, ticker=ticker)
+                   anteriores, escolhas_ant, progresso=progresso)
     mensal, h = res.mensal, res.hoje
     meses = [d for d in base.index if _fim_de_mes(d)]
     preco_mensal = base.loc[meses, "preco"]
@@ -99,7 +100,7 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
           if len(jan) else pd.DataFrame())
     sinais = avaliacao.margem_como_sinal(jan, base, dados.precos.diario, desd, dados.precos.proventos, cfg) if len(jan) else []
     progresso(f"{ticker}: ranking dos preditores de 1, 2 e 3 anos atrás")
-    historia_preditores = _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, bases_pares, ticker, imp)
+    historia_preditores = _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, imp)
 
     stamp = agora.strftime("%Y-%m-%d_%H%M")
     pasta_rel = caminhos.pasta_relatorios(ticker) / stamp
@@ -131,7 +132,7 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
 
 # ------------------------------------------------------------------ fase 2: preditores no tempo e sinais
 
-def _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, bases_pares, ticker, imp_hoje) -> list[dict]:
+def _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, imp_hoje) -> list[dict]:
     """Ranking dos preditores nos retreinos de 1, 2 e 3 anos atrás (modelos refeitos, iguais aos da época)."""
     if res.escolhas is None or not len(res.escolhas) or imp_hoje is None:
         return []
@@ -149,7 +150,7 @@ def _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, bases_pares, t
         if x.empty:
             continue
         r = pd.Timestamp(x["data"].iloc[-1])
-        passo = WF.refazer_passo(base, r, setor["alvos"], candidatas, cfg, x["escolhido"].iloc[-1], bases_pares, ticker)
+        passo = WF.refazer_passo(base, r, setor["alvos"], candidatas, cfg, x["escolhido"].iloc[-1])
         if passo is None or r not in base.index:
             continue
         try:
@@ -185,11 +186,12 @@ def _contexto_fase2(sinais, historia, pares, setor) -> dict:
                         f"hoje já estavam entre os 5 maiores; {corr}.")
     return {"sinais": linhas_sinal, "texto_sinais": texto, "historia_preditores": historia,
             "texto_historia_preditores": hist_txt,
-            "pares": sorted(pares), "nota_painel": (
-                f"Painel com os pares do setor ({', '.join(sorted(pares))}): os candidatos em painel treinam o ativo e os "
-                "pares juntos, com efeito fixo por empresa, e disputam a escolha do walk-forward como os demais. "
-                "Esse painel foi incluído depois de ver o resultado da Fase 1 (aceito pelo usuário); o critério de "
-                "estimativa confiável não mudou.") if pares else ""}
+            "pares": sorted(pares), "nota_modelo": (
+                "Modelo próprio do ativo: treinado só com o histórico da empresa e as variáveis de mercado, macro e "
+                "do setor; nenhum dado de outra empresa entra no treino nem na escolha do modelo, e cada análise refaz "
+                "o método inteiro. O painel com os pares, testado na Fase 2, foi retirado a pedido do usuário em "
+                "24/11/2026." + (f" Os pares do setor ({', '.join(sorted(pares))}) aparecem só na checagem com "
+                                 "múltiplos." if pares else ""))}
 
 
 # ------------------------------------------------------------------ montagem dos registros
@@ -611,9 +613,10 @@ def _metodologia(setor, cfg) -> list[str]:
         "(mínimo de 24 meses). Erro típico: mediana de |V − P| ÷ V nos meses fora da amostra.",
         "Importância dos preditores: SHAP (permutação) sobre o log do valor de mercado estimado, conferida por "
         "importância de permutação.",
-        "Painel com os pares do setor (config/setores.yaml): candidatos com o ativo e os pares juntos, alvos em "
-        "múltiplo (P/L, P/VP e, fora dos bancos, EV/EBITDA) e efeito fixo por empresa; a seleção de variáveis olha "
-        "a variação dentro de cada empresa e a validação separa por data.",
+        "Modelo próprio do ativo: cada análise refaz o método inteiro só com o histórico da empresa (preço e "
+        "indicadores divulgados na CVM) e as variáveis de mercado, macro e do setor; nenhum dado de outra empresa "
+        "entra no treino nem na escolha do modelo. Os pares do setor (config/setores.yaml) aparecem só na checagem "
+        "com múltiplos.",
         "Fontes: CVM dados abertos (DFP, ITR, FRE); B3 (COTAHIST); Yahoo Finance (proventos, desdobramentos, índices); "
         "Banco Central (SGS e Boletim Focus); Tesouro Transparente (Tesouro Direto); FRED; Ipeadata.",
     ]

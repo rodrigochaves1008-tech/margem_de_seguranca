@@ -23,7 +23,6 @@ def testar(ticker: str, meses: int = 3, semente: int = 2026, progresso=print) ->
     cfg = config.cfg()
     progresso(f"{ticker}: carregando dados para o teste de vazamento")
     dados = painel.carregar(ticker)
-    pares, _ = painel.carregar_pares(dados, progresso=None)
     candidatas = [v for fam in painel.preditores_do_setor(setor).values() for v in fam]
     rng = np.random.default_rng(semente)
     elegiveis = [d for d in guardado.index if np.isfinite(guardado.at[d, "V"])]
@@ -35,11 +34,8 @@ def testar(ticker: str, meses: int = 3, semente: int = 2026, progresso=print) ->
         corr = painel.corromper_depois(dados, t, semente + i + 1)
         datas = painel.datas_da_base(corr, t)
         base = painel.montar(corr, datas)
-        # Os pares também recebem valores aleatórios depois da data.
-        bases_pares = {p: painel.montar(painel.corromper_depois(d, t, semente + 100 * (i + 1) + j), datas)
-                       for j, (p, d) in enumerate(sorted(pares.items()))}
         res = WF.rodar(base, setor["alvos"], candidatas, cfg, corr.cvm["documentos"]["divulgacao"],
-                       corr.precos.desdobramentos, t, None, None, progresso=None, pares=bases_pares, ticker=ticker)
+                       corr.precos.desdobramentos, t, None, None, progresso=None)
         refeito = float(res.mensal.at[t, "V"]) if t in res.mensal.index else np.nan
         orig = float(guardado.at[t, "V"])
         resultados.append({"mes": t, "guardado": orig, "refeito": refeito, "diferenca": refeito - orig,

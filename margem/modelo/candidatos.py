@@ -25,7 +25,6 @@ NOMES_MODELOS = {
     "ens_rn_ridge": "média: rede neural + ridge", "ens_rn_gb": "média: rede neural + boosting",
     "ens_ridge_gb": "média: ridge + boosting", "ensemble_todos": "média dos três modelos",
     "ensemble_geral": "média de todos os modelos e alvos", "passeio": "passeio aleatório (último preço)",
-    "painel_rn": "rede neural em painel com os pares", "painel_todos": "média dos modelos em painel com os pares",
 }
 NOMES_ALVOS = {"log_valor_mercado": "valor de mercado", "log_pl": "P/L", "log_pvp": "P/VP",
                "log_ev_ebitda": "EV/EBITDA", "todos": "todos os alvos"}
@@ -42,8 +41,8 @@ class Ajuste:
 
 
 def divisoes_no_tempo(datas, n_splits: int = 4) -> list[tuple[np.ndarray, np.ndarray]]:
-    """Validação cruzada em ordem de tempo por data (no painel, todas as empresas de uma data ficam
-    do mesmo lado). Com uma empresa só, é igual ao TimeSeriesSplit nas linhas."""
+    """Validação cruzada em ordem de tempo, por data (linhas da mesma data ficam do mesmo lado).
+    Com uma linha por data, é igual ao TimeSeriesSplit."""
     d = pd.to_datetime(pd.Series(datas)).to_numpy()
     unicas = np.unique(d)
     out = []
@@ -65,20 +64,15 @@ class _RidgeEscalado:
         return self.m.predict(self.esc.transform(X))
 
 
-def selecionar_variaveis(treino: pd.DataFrame, alvo: str, candidatas: list[str], cfg_sel: dict,
-                         grupos: pd.Series | None = None) -> tuple[list[str], dict, dict]:
-    """Cobertura, redundância e LASSO com validação no tempo. No painel (`grupos` = empresa de cada
-    linha), a seleção olha a variação dentro de cada empresa (o nível de cada uma fica com o efeito fixo)."""
+def selecionar_variaveis(treino: pd.DataFrame, alvo: str, candidatas: list[str],
+                         cfg_sel: dict) -> tuple[list[str], dict, dict]:
+    """Cobertura, redundância e LASSO com validação no tempo, só com o histórico do próprio ativo."""
     y = treino[alvo]
     cols = [c for c in candidatas if c in treino.columns]
     cob = treino[cols].notna().mean()
     cols = [c for c in cols if cob[c] >= cfg_sel["cobertura_min"]]
     medianas = treino[cols].median().to_dict()
     X = treino[cols].fillna(medianas)
-    if grupos is not None:
-        g = pd.Series(np.asarray(grupos), index=X.index)
-        X = X - X.groupby(g.values).transform("mean")
-        y = y - y.groupby(g.values).transform("mean")
     cols = [c for c in cols if X[c].std() > 1e-12]
     X = X[cols]
     if not cols:
@@ -106,21 +100,14 @@ def selecionar_variaveis(treino: pd.DataFrame, alvo: str, candidatas: list[str],
     return escolhidas, {c: medianas[c] for c in escolhidas}, info
 
 
-def ajustar(treino: pd.DataFrame, alvo: str, candidatas: list[str], cfg_modelo: dict,
-            fixas: list[str] | None = None, grupos_col: str | None = None) -> Ajuste | None:
-    """Ajusta rede neural, ridge e boosting para um alvo. `fixas`: colunas sempre usadas, fora da
-    seleção (no painel, os efeitos fixos de empresa); `grupos_col`: coluna com a empresa de cada linha."""
+def ajustar(treino: pd.DataFrame, alvo: str, candidatas: list[str], cfg_modelo: dict) -> Ajuste | None:
+    """Ajusta rede neural, ridge e boosting para um alvo, só com o histórico do próprio ativo."""
     treino = treino[treino[alvo].notna()]
     if treino.index.nunique() < int(cfg_modelo["meses_treino_min"]):
         return None
-    grupos = treino[grupos_col] if grupos_col else None
-    variaveis, medianas, info = selecionar_variaveis(treino, alvo, candidatas, cfg_modelo["selecao_variaveis"], grupos)
+    variaveis, medianas, info = selecionar_variaveis(treino, alvo, candidatas, cfg_modelo["selecao_variaveis"])
     if not variaveis:
         return None
-    fixas = [c for c in (fixas or []) if c in treino.columns]
-    for c in fixas:
-        medianas[c] = 0.0
-    variaveis = variaveis + fixas
     X = treino[variaveis].fillna(medianas).to_numpy(float)
     y = treino[alvo].to_numpy(float)
     divisoes = divisoes_no_tempo(treino.index)

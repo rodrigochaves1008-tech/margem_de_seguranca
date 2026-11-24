@@ -1,5 +1,5 @@
 """Checagem com valuation tradicional: modelo de dividendos e P/VP justificado (bancos),
-múltiplos contra o histórico, Graham e Bazin. Pares entram na Fase 2."""
+múltiplos contra o histórico, Graham e Bazin. Os pares do setor entram só nesta checagem, nunca no modelo."""
 from __future__ import annotations
 
 import numpy as np

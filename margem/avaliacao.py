@@ -49,11 +49,6 @@ def tabela_backtest(mensal: pd.DataFrame, preco_mensal: pd.Series, desd: pd.Data
                 series[f"{C.NOMES_MODELOS[m]} · alvo {C.NOMES_ALVOS[a]}"] = mensal[col]
     if "V__ensemble_geral|todos" in mensal:
         series[C.NOMES_MODELOS["ensemble_geral"]] = mensal["V__ensemble_geral|todos"]
-    for a in alvos:
-        for m, nome in (("painel_rn", "rede neural em painel com os pares"), ("painel_todos", "média dos modelos em painel")):
-            col = f"V__{m}|{a}"
-            if col in mensal and mensal[col].notna().any():
-                series[f"{nome} · alvo {C.NOMES_ALVOS[a]}"] = mensal[col]
     for nome, s in series.items():
         reg = {"modelo": nome}
         for h in horizontes:

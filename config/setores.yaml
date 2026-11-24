@@ -35,7 +35,7 @@ setores:
     contabilidade: banco
     # Alvos em disputa no walk-forward (valor de mercado, P/L e P/VP, todos em log).
     alvos: [log_valor_mercado, log_pl, log_pvp]
-    # Pares do setor: entram no painel (candidato a mais no walk-forward) e na comparação de múltiplos.
+    # Pares do setor: só para a comparação de múltiplos no valuation tradicional; não entram no modelo.
     pares: [ITUB4, BBDC4, SANB11, ABCB4, BRSR6]
     preditores:
       empresa: [log_lucro_12m, log_patrimonio, roe, roa, cresc_lucro_12m, cresc_lucro_3a,

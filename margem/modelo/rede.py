@@ -82,7 +82,7 @@ class RedeNeural:
         self.sementes = tuple(sementes)
 
     def fit(self, X: np.ndarray, y: np.ndarray, datas=None) -> "RedeNeural":
-        """`datas`: data de cada linha (no painel, várias linhas por data). A validação do early
+        """`datas`: data de cada linha. A validação do early
         stopping é o bloco final de datas, separado do treino por alguns meses."""
         X = np.asarray(X, float)
         y = np.asarray(y, float)

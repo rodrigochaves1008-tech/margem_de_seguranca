@@ -51,3 +51,10 @@ Entenda variações dos textos abaixo (com ou sem "no Margem de Segurança", "ro
   `config/setores.yaml` e `config/series.yaml`), mostre ao usuário e só use depois do OK dele.
 - Se o modelo não for confiável para o ativo, diga isso; não force um número.
 - Termine as respostas com: "Estimativa de modelo, não é recomendação de investimento."
+
+## Uso dos créditos (regra do usuário)
+Ao chegar em 50% da janela de 5 horas, pause e volte sozinho quando ela renovar; ao chegar em 50% do
+limite semanal, pause e só volte quando o semanal renovar. Se a sessão tiver como ler o uso (na nuvem:
+`list_events` da própria sessão com `kinds: ["rate_limit_event"]`) e agendar a volta (`send_later`),
+siga o procedimento da seção "Uso dos créditos" do CLAUDE.md do projeto. Se não tiver, avise o usuário,
+antes de lotes longos, que a pausa automática não está disponível nesta sessão.

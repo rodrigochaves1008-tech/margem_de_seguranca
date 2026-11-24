@@ -136,38 +136,6 @@ def cmd_vazamento(args) -> int:
     return 0 if ok else 1
 
 
-def cmd_teste_criterios(args) -> int:
-    from pathlib import Path
-
-    from . import teste_criterios as T
-
-    pasta = Path(args.pasta) if args.pasta else caminhos.saida()
-    print("Variantes:")
-    for k, v in T.VARIANTES.items():
-        print(f"  {k}: {v['nome']}")
-    conta = {k: 0 for k in T.VARIANTES}
-    for t in [x.upper() for x in args.tickers]:
-        p = pasta / t if (pasta / t / "ultima_rodada").exists() else pasta
-        try:
-            r = T.avaliar_ativo(p, t)
-        except FileNotFoundError as e:
-            print(f"{t}: sem rodada guardada ({e.filename})")
-            continue
-        print(f"\n{t} · {r['setor']} · reconstrução da variante A confere: {'sim' if r.get('reconstrucao_confere') else 'NÃO'}")
-        for k in T.VARIANTES:
-            x = r[k]
-            conta[k] += int(x["confiavel"])
-            rz = " · ".join(f"{h} meses: {formatos.pct(v, 0)}" for h, v in sorted(x["razoes"].items(), reverse=True))
-            print(f"  {k}: {'CONFIÁVEL' if x['confiavel'] else 'sem estimativa'} · erro ÷ passeio: {rz} · "
-                  f"erro típico {formatos.pct(x['erro_tipico'], 1)} · faixa {formatos.pct(x['cobertura_faixa'], 0)}")
-            if not x["confiavel"]:
-                print("     motivos: " + "; ".join(x["motivos"]))
-            elif x.get("margem") is not None:
-                print(f"     preço justo {formatos.moeda(x['V'])} · margem {formatos.pct(x['margem'], 1, True)}")
-    print("\nResumo: " + " · ".join(f"{k}: {n} de {len(args.tickers)} com estimativa confiável" for k, n in conta.items()))
-    return 0
-
-
 def cmd_retomar(args) -> int:
     arq = caminhos.arquivo_lote()
     if not arq.exists():
@@ -191,8 +159,6 @@ def main(argv=None) -> int:
     s = sub.add_parser("teste-vazamento"); s.add_argument("ticker"); s.add_argument("--meses", type=int, default=3)
     s.add_argument("--semente", type=int, default=2026); s.set_defaults(f=cmd_vazamento)
     s = sub.add_parser("retomar"); s.set_defaults(f=cmd_retomar)
-    s = sub.add_parser("teste-criterios"); s.add_argument("tickers", nargs="+"); s.add_argument("--pasta")
-    s.set_defaults(f=cmd_teste_criterios)
     args = p.parse_args(argv)
     return args.f(args)
 

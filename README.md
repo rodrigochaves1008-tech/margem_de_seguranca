@@ -37,18 +37,16 @@ python -m margem ranking-dos-ativos
 python -m margem refazer desatualizados
 python -m margem tirar BBAS3
 python -m margem teste-vazamento BBAS3
-python -m margem teste-criterios ITUB4 EGIE3 ROMI3
 ```
 
-`teste-criterios` compara, sem treinar de novo, a regra de escolha e o critério de estimativa
-confiável atuais com uma alternativa (escolha e comparação com o passeio aleatório em 12 e 24 meses).
-
-## Setores e pares
+## Setores e modelo de cada ativo
 
 O setor de cada ativo vem do cadastro da CVM, ligado aos setores do modelo por `config/setores.yaml`
 (`mapa_cvm`). Hoje estão ativos: bancos, indústria e energia elétrica. Cada setor tem a sua lista de
-preditores e de pares; os pares entram num painel (candidato a mais no walk-forward) e na comparação
-de múltiplos. Ativo de setor fora do mapa: a rodada para e pede a aprovação dos preditores.
+preditores. O modelo de cada ativo é próprio: treina só com o histórico da empresa (preço e indicadores
+divulgados na CVM) e com as variáveis de mercado, macro e do setor, e cada análise refaz o método inteiro.
+Os pares listados em cada setor servem só para a comparação de múltiplos na checagem com valuation
+tradicional. Ativo de setor fora do mapa: a rodada para e pede a aprovação dos preditores.
 
 ## Onde ficam as coisas
 

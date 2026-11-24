@@ -25,32 +25,25 @@ FAMILIAS = {"empresa": "empresa", "setor": "setor", "macro_brasil": "macro Brasi
             "conversao": "empresa", "outro": "outro"}
 
 
-def _componentes(passo) -> list[tuple[str, str, bool]]:
-    """(alvo, modelo, em painel) que compõem o candidato escolhido."""
+def _componentes(passo) -> list[tuple[str, str]]:
+    """(alvo, modelo) que compõem o candidato escolhido."""
     modelo, alvo = passo.escolhido.split("|")
-    if modelo.startswith("painel_"):
-        membros = ("rn",) if modelo == "painel_rn" else C.MODELOS_BASE
-        return [(alvo, m, True) for m in membros]
     alvos = list(passo.ajustes) if alvo == "todos" else [alvo]
     if modelo == "ensemble_geral":
-        return [(a, m, False) for a in alvos for m in C.MODELOS_BASE]
+        return [(a, m) for a in alvos for m in C.MODELOS_BASE]
     membros = C.ENSEMBLES.get(modelo, (modelo,))
-    return [(a, m, False) for a in alvos for m in membros]
-
-
-def _ajuste(passo, a, painel):
-    return (passo.ajustes_painel if painel else passo.ajustes).get(a)
+    return [(a, m) for a in alvos for m in membros]
 
 
 def funcao_explicada(passo):
-    comps = [(a, m, p) for a, m, p in _componentes(passo) if _ajuste(passo, a, p) is not None]
+    comps = [(a, m) for a, m in _componentes(passo) if passo.ajustes.get(a) is not None]
     variaveis: list[str] = []
-    for a, _, p in comps:
-        for v in _ajuste(passo, a, p).variaveis:
-            if v not in variaveis and not v.startswith("_e_"):
+    for a, _ in comps:
+        for v in passo.ajustes[a].variaveis:
+            if v not in variaveis:
                 variaveis.append(v)
     conv = []
-    for a, _, p in comps:
+    for a, _ in comps:
         if a in CONVERSAO and CONVERSAO[a][0] not in conv:
             conv.append(CONVERSAO[a][0])
         if a == "log_ev_ebitda" and CONV_DIVIDA[0] not in conv:
@@ -60,15 +53,9 @@ def funcao_explicada(passo):
     def f(M: np.ndarray) -> np.ndarray:
         df = pd.DataFrame(M, columns=colunas)
         partes = []
-        for a, m, p in comps:
-            aj = _ajuste(passo, a, p)
-            dx = df
-            if p:
-                dx = df.copy()
-                dummies = [v for v in aj.variaveis if v.startswith("_e_")]
-                for i, v in enumerate(dummies):
-                    dx[v] = 1.0 if i == 0 else 0.0
-            X = dx[aj.variaveis].fillna(aj.medianas).to_numpy(float)
+        for a, m in comps:
+            aj = passo.ajustes[a]
+            X = df[aj.variaveis].fillna(aj.medianas).to_numpy(float)
             y = np.asarray(aj.modelos[m].predict(X), float)
             if a == "log_ev_ebitda":
                 ev = np.exp(y + df["_conv_ebitda"].to_numpy(float))
@@ -137,7 +124,7 @@ def importancia(passo, base: pd.DataFrame, data_hoje: pd.Timestamp, setor: dict,
 
     colunas, f = funcao_explicada(passo)
     treino = base[(base.index < pd.Timestamp(passo.retreino))]
-    alvos_usados = sorted({a for a, _, _ in _componentes(passo)} & set(base.columns))
+    alvos_usados = sorted({a for a, _ in _componentes(passo)} & set(base.columns))
     treino = treino[treino[alvos_usados].notna().all(axis=1)] if alvos_usados else treino
     M_treino = _matriz(treino, colunas)
     meds = M_treino.median()

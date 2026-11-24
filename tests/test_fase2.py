@@ -28,7 +28,7 @@ def test_divisoes_no_tempo_igual_ao_timeseriessplit_com_uma_empresa():
     assert all(np.array_equal(x[0], y[0]) and np.array_equal(x[1], y[1]) for x, y in zip(a, b))
 
 
-def test_divisoes_no_tempo_no_painel_nao_partem_uma_data():
+def test_divisoes_no_tempo_nao_partem_uma_data():
     datas = np.repeat(pd.date_range("2015-01-31", periods=40, freq="ME"), 3)
     for tr, te in divisoes_no_tempo(datas):
         assert set(datas[tr]).isdisjoint(set(datas[te]))

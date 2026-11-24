@@ -48,6 +48,13 @@ Atualize esta seção ao fim de cada fase.
   TAEE11 113/118%, ROMI3 126/104%, RAPT4 136/127%. A 24 meses foi pior que a 12 em todos: o indício
   visto no BBAS3 e na CMIG4 não se confirmou. A reconstrução da variante A bateu com a produção nos 6.
   Recomendação feita ao usuário: manter o critério A e seguir para a Fase 3; aguardando resposta.
+- 24/11/2026: o usuário decidiu (ver Decisões 5): cada empresa tem modelo próprio, só com o histórico
+  dela e as variáveis de mercado, macro e do setor; nada de painel com pares nem de testes em outros
+  ativos para decidir o método; cada análise refaz o método inteiro. Feito no branch `fase-2` (versão
+  do modelo 1.2.0): painel retirado do walk-forward, do ranking dos preditores, do backtest e do teste
+  de vazamento; `ms teste-criterios` removido. Os pares do setor ficam só na comparação de múltiplos
+  do valuation tradicional (item da especificação), sem efeito no preço justo. Critério A mantido.
+  Rodadas de BBAS3, WEGE3 e CMIG4 e testes de vazamento com a versão 1.2.0: em andamento.
 - Não apresente o plano de novo. Não mude o desenho do modelo olhando o backtest do período
   todo sem dizer isso ao usuário (seria escolher com o período todo).
 
@@ -74,8 +81,37 @@ Notas técnicas aprendidas na Fase 1:
 4. Substitutos: EMBI+ Brasil (Ipeadata) no lugar do CDS de 5 anos; indicador antecedente da
    OCDE para a China se o PMI oficial (NBS) não tiver acesso estável. Custos da margem como
    sinal: 0,25% ida e volta.
+5. Modelo próprio por empresa (24/11/2026): treinado só com o histórico da própria empresa (preço e
+   indicadores da CVM) e com as variáveis de mercado, macro e do setor. Sem painel com pares, sem
+   modelos de outras empresas e sem testes em outros ativos para decidir o método. Cada análise refaz
+   o método inteiro para a empresa (as estimativas mensais já guardadas só são reaproveitadas se a
+   versão do modelo não mudou, como manda a especificação). Substitui o item "histórico curto → painel"
+   da especificação e do plano: sem dados suficientes, o ativo fica sem estimativa confiável, com o motivo.
+6. Uso dos créditos (24/11/2026): ao chegar em 50% da janela de 5 horas, pausar e voltar sozinho quando
+   ela renovar; ao chegar em 50% do limite semanal, pausar e voltar só quando o semanal renovar.
+   Procedimento na seção "Uso dos créditos".
 
 Os itens 2 a 4 são as propostas do plano, adotadas sem objeção do usuário. Ele pode mudá-las.
+
+## Uso dos créditos (regra do usuário, decisão 6)
+- Conferir, na nuvem: `list_events` da própria sessão (o id vem de `get_session`) com
+  `kinds: ["rate_limit_event"]` e `limit: 30`. O evento mais recente traz
+  `unifiedWindows.five_hour.utilization` e `unifiedWindows.seven_day.utilization` (de 0 a 1) e o
+  `resetsAt` de cada janela (segundos desde 1970, UTC). Hooks não enxergam esse dado: quem confere é o Claude.
+- Quando: no início de cada turno, antes de cada etapa longa e a cada 5 a 10 chamadas de ferramenta.
+  Com o contexto cheio, cada chamada gasta perto de 1% da janela de 5 horas.
+- Em 50% ou mais (qualquer das duas janelas):
+  1. terminar só o passo em andamento;
+  2. fazer commit e push do que estiver pronto, porque o contêiner pode ser reciclado na pausa;
+  3. anotar em "Estado do projeto" onde parou;
+  4. agendar com `send_later` uma mensagem para o `resetsAt` da janela que chegou a 50%, mais
+     3 minutos (se as duas chegaram, a que renova por último), dizendo o que retomar;
+  5. avisar o usuário do horário da volta, no horário de Brasília, e encerrar o turno.
+- Processos em segundo plano (rodadas do modelo) não gastam créditos e podem seguir na pausa. Na volta,
+  conferir se terminaram e refazer o que se perdeu.
+- Na volta: conferir de novo; se ainda estiver em 50% ou mais, reagendar.
+- Sessão sem como ler o uso ou agendar a volta (por exemplo, no PC): avisar o usuário antes de etapas
+  longas que a pausa automática não está disponível nela.
 
 ## Pendências com o usuário
 - Chave gratuita da API do FRED, para as versões da época (ALFRED). O usuário cria a chave em
