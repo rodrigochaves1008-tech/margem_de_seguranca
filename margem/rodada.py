@@ -132,8 +132,12 @@ def _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, bases_pares, t
     """Ranking dos preditores nos retreinos de 1, 2 e 3 anos atrás (modelos refeitos, iguais aos da época)."""
     if res.escolhas is None or not len(res.escolhas) or imp_hoje is None:
         return []
+    def nome_modelo(c):
+        m, a = (c or "|").split("|")
+        return C.NOMES_MODELOS.get(m, m) + ("" if a in ("todos", "") else f", alvo {C.NOMES_ALVOS.get(a, a)}")
+
     out = [{"quando": "hoje", "data": hoje, "top": imp_hoje.head(5)[["nome", "importancia"]].to_dict("records"),
-            "comuns": None, "correlacao": None}]
+            "comuns": None, "correlacao": None, "modelo": nome_modelo(res.hoje.get("escolhido"))}]
     top_hoje = list(imp_hoje.head(5)["variavel"])
     esc = res.escolhas.sort_values("data")
     for anos in (1, 2, 3):
@@ -151,10 +155,11 @@ def _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, bases_pares, t
             continue
         comum = imp.set_index("variavel")["importancia"].reindex(imp_hoje["variavel"]).dropna()
         corr = (imp_hoje.set_index("variavel")["importancia"].reindex(comum.index).rank()
-                .corr(comum.rank())) if len(comum) > 2 else np.nan
+                .corr(comum.rank())) if len(comum) >= 4 else np.nan
         out.append({"quando": f"há {anos} {'ano' if anos == 1 else 'anos'}", "data": r,
                     "top": imp.head(5)[["nome", "importancia"]].to_dict("records"),
-                    "comuns": len(set(imp.head(5)["variavel"]) & set(top_hoje)), "correlacao": corr})
+                    "comuns": len(set(imp.head(5)["variavel"]) & set(top_hoje)), "correlacao": corr,
+                    "n_comuns": len(comum), "modelo": nome_modelo(x["escolhido"].iloc[-1])})
     return out
 
 
@@ -170,8 +175,11 @@ def _contexto_fase2(sinais, historia, pares, setor) -> dict:
              "permite conclusão estatística." if n_max < 10 else "")
     hist_txt = []
     for h in historia[1:]:
-        hist_txt.append(f"{h['quando']} ({formatos.data(h['data'])}): {h['comuns']} dos 5 maiores de hoje já estavam entre "
-                        f"os 5 maiores; correlação de postos entre os rankings: {formatos.num(h['correlacao'], 2)}.")
+        corr = (f"correlação de postos nos {h['n_comuns']} preditores em comum: {formatos.num(h['correlacao'], 2)}"
+                if h.get("correlacao") is not None and np.isfinite(h["correlacao"])
+                else f"só {h.get('n_comuns', 0)} preditores em comum, poucos para comparar a ordem")
+        hist_txt.append(f"{h['quando']} ({formatos.data(h['data'])}, modelo: {h['modelo']}): {h['comuns']} dos 5 maiores de "
+                        f"hoje já estavam entre os 5 maiores; {corr}.")
     return {"sinais": linhas_sinal, "texto_sinais": texto, "historia_preditores": historia,
             "texto_historia_preditores": hist_txt,
             "pares": sorted(pares), "nota_painel": (

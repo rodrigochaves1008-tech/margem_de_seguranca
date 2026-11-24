@@ -28,6 +28,17 @@ Atualize esta seção ao fim de cada fase.
   e energia elétrica ativos (IBGE SIDRA, ONS, FRED, SGS), pares por setor e candidatos em painel
   (efeito fixo por empresa), DCF e múltiplos dos pares no valuation, margem como sinal, ranking dos
   preditores nos retreinos de 1, 2 e 3 anos atrás, units (preço dividido pelas ações da unit).
+- Resultado da Fase 2 (lote BBAS3, WEGE3, CMIG4): nenhum passa no critério estrito. Erro do modelo ÷
+  erro do passeio aleatório (12 meses / 6 meses): BBAS3 122% / 117%; WEGE3 107% / 145%; CMIG4
+  113% / 109% (e preço dentro da faixa de 80% em 93% dos meses). Teste de vazamento passou nos três
+  (9 meses, diferença 0,000000, com os pares também corrompidos). Tempo: primeira rodada com painel
+  3,6 a 9,6 min; rodadas seguintes 1,6 a 4,2 min; atualização rápida de 3 ativos em 1 s.
+- Diagnóstico olhando o período todo (só informativo, não usado em escolha): a média simples de todos
+  os modelos erra menos que a escolha do walk-forward no BBAS3 e na WEGE3 (não na CMIG4); o painel
+  ajudou na CMIG4 e piorou na WEGE3; a 24 meses, alguns candidatos batem o passeio no BBAS3 e na CMIG4.
+- Decisões pendentes com o usuário: manter o critério (horizontes de 6 e 12 meses) ou testar outro
+  (por exemplo, 12 e 24 meses) primeiro em ativos ainda não analisados, para não ajustar o critério
+  aos três já vistos; seguir para a Fase 3.
 - Não apresente o plano de novo. Não mude o desenho do modelo olhando o backtest do período
   todo sem dizer isso ao usuário (seria escolher com o período todo).
 
