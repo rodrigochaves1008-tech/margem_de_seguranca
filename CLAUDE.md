@@ -109,6 +109,8 @@ Atualize esta seção ao fim de cada fase.
   - atualizar `saida/ultima_rodada/BBAS3/precos_alvo.json` sem apagar itens. Se a pasta `saida` sumiu
     (máquina nova), partir das cópias em `skill/exemplos/`;
   - rodar o BBAS3, conferir, fazer commit e push e mostrar o resultado só do BBAS3.
+- 24/11/2026: a pedido do usuário, WEGE3 e CMIG4 saíram do ranking dos ativos por ora (`ms tirar`; histórico,
+  relatórios e telas mantidos). Se a pasta `saida` sumir, repetir. Rodar o ativo de novo o traz de volta.
 - Pendente no PC: rodar de novo o `instalar.ps1`, que instala o `ruptures` e a skill nova.
 - Não apresente o plano de novo. Não mude o desenho do modelo olhando o backtest do período
   todo sem dizer isso ao usuário (seria escolher com o período todo).
