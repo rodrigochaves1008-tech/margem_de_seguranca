@@ -54,7 +54,13 @@ Atualize esta seção ao fim de cada fase.
   do modelo 1.2.0): painel retirado do walk-forward, do ranking dos preditores, do backtest e do teste
   de vazamento; `ms teste-criterios` removido. Os pares do setor ficam só na comparação de múltiplos
   do valuation tradicional (item da especificação), sem efeito no preço justo. Critério A mantido.
-  Rodadas de BBAS3, WEGE3 e CMIG4 e testes de vazamento com a versão 1.2.0: em andamento.
+- Resultado da versão 1.2.0 (modelo próprio, sem painel): nenhum dos três passa no critério estrito.
+  Erro do modelo ÷ erro do passeio (12 meses / 6 meses): BBAS3 122% / 117% e WEGE3 107% / 145%, iguais
+  aos da Fase 2; CMIG4 141% / 137%, pior que os 113% / 109% com o painel, e ainda preço dentro da faixa
+  de 80% em 92% dos meses e 14% de variação entre sementes. Erro típico: BBAS3 9,2%, WEGE3 14,4%,
+  CMIG4 12,8%. Teste de vazamento passou nos três (3 meses, diferença 0,000000). Walk-forward completo:
+  2,8, 5,1 e 5,2 min. Ranking dos ativos: 0 com estimativa, 3 na lista sem estimativa confiável.
+- Aguardando o usuário: começar a Fase 3 (mudanças estruturais e projeção por cenários)?
 - Não apresente o plano de novo. Não mude o desenho do modelo olhando o backtest do período
   todo sem dizer isso ao usuário (seria escolher com o período todo).
 
