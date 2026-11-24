@@ -103,12 +103,16 @@ Atualize esta seção ao fim de cada fase.
   - CMIG4: 2 alvos; média de hoje R$ 12,45.
   Próximas rodadas: aprofundar (anos anteriores e datas exatas).
 - 24/11/2026: o usuário mandou juntar `analistas` na `main` (feito) e aprofundar a pesquisa dos preços-alvo,
-  só do BBAS3 ("quero só a análise do BBAS3"). Pausa pela regra dos créditos às 14:21, com a janela de 5
-  horas perto de 50%; volta agendada para 17:53 (horário de Brasília). Ao voltar:
-  - pesquisar alvos públicos do BBAS3 de anos anteriores (2016 a 2025) e as datas exatas dos já gravados;
-  - atualizar `saida/ultima_rodada/BBAS3/precos_alvo.json` sem apagar itens. Se a pasta `saida` sumiu
-    (máquina nova), partir das cópias em `skill/exemplos/`;
-  - rodar o BBAS3, conferir, fazer commit e push e mostrar o resultado só do BBAS3.
+  só do BBAS3 ("quero só a análise do BBAS3"). Houve uma pausa pela regra dos créditos, das 14:21 às 17:53
+  (horário de Brasília). Na volta, a pesquisa aprofundada:
+  - 24 alvos públicos de 11 casas, de nov/2016 a nov/2026; 4 com data exata e os demais só com o mês;
+  - buracos sem alvo datado: jan–mar/2019, mar–ago/2020, ago–dez/2021, fev–ago/2023 e set–nov/2024;
+  - média de hoje R$ 20,38 (6 casas), +40,5% sobre o preço de R$ 14,51;
+  - cópia em `skill/exemplos/BBAS3_precos_alvo.json`.
+  Estudo das épocas no BBAS3 (modelo não confiável):
+  - 8 épocas de margem alta;
+  - retorno médio com proventos depois do pico de +17,6% em 6 meses e +25,5% em 12 meses (7 épocas);
+  - hoje a margem do modelo, +14,9%, está entre as épocas de margem alta.
 - 24/11/2026: a pedido do usuário, WEGE3 e CMIG4 saíram do ranking dos ativos por ora (`ms tirar`; histórico,
   relatórios e telas mantidos). Se a pasta `saida` sumir, repetir. Rodar o ativo de novo o traz de volta.
 - Pendente no PC: rodar de novo o `instalar.ps1`, que instala o `ruptures` e a skill nova.
