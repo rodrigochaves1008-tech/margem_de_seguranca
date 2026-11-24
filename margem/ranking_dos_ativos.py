@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from . import caminhos, config, formatos, graficos, historico
+from . import analistas
 from . import precos as P
 from .fontes import cvm, yahoo
 from .saida import paginas
@@ -48,6 +49,8 @@ def ler_ultima_rodada(ticker: str) -> dict | None:
         out[nome] = pd.read_parquet(q) if q.exists() else None
     q = ur / "eventos.json"
     out["eventos"] = json.loads(q.read_text(encoding="utf-8")) if q.exists() else []
+    q = ur / "precos_alvo.json"
+    out["alvos"] = json.loads(q.read_text(encoding="utf-8")) if q.exists() else None
     return out
 
 
@@ -238,11 +241,17 @@ def posicao_texto(t: str, resultado: dict, fora: bool) -> str:
     return "sem estimativa confiável (lista à parte)"
 
 
+def _validade() -> int:
+    from . import config as _c
+    return int(_c.cfg().get("analistas", {}).get("validade_meses", 12))
+
+
 def escrever_tela_ativo(t: str, d: dict, reg: dict | None, resultado: dict, fora: bool) -> None:
     a = d["ur"]["analise"]
     ate = d["diario"]["data"].max()
     dg = graficos.montar(d["diario"], d["desd"], d["prov"], d["ur"]["walkforward"], a, historico.do_ativo(t),
-                         ate, tracejado=True, eventos=d["ur"]["eventos"])
+                         ate, tracejado=True, eventos=d["ur"]["eventos"],
+                         alvos=(d["ur"].get("alvos") or {}).get("itens"), validade_meses=_validade())
     preco, data_preco = P.preco_em(d["diario"], ate)
     ctx = {
         "ticker": t, "nome": a.get("nome", t), "setor_nome": a.get("setor_nome", a["setor"]),
@@ -253,6 +262,7 @@ def escrever_tela_ativo(t: str, d: dict, reg: dict | None, resultado: dict, fora
         "marcas": (reg or {}).get("marcas", []) if not fora else [{"texto": "fora do ranking dos ativos", "alerta": True, "dica": ""}],
         "legenda": legenda(a, dg),
         "marcas_grafico": dg.get("eventos", []),
+        "analistas_hoje": analistas.resumo_hoje(d["ur"].get("alvos"), d["desd"], ate, preco, _validade()),
     }
     if a.get("estimativa"):
         V, ajustado = graficos.ajuste_pos_analise(a["preco_justo"], str(a["data_analise"])[:10], ate, d["diario"], d["desd"], d["prov"])
@@ -273,6 +283,9 @@ def legenda(a: dict, dg: dict) -> str:
     if desde:
         partes.append(f"Dados desde {formatos.data(desde)}.")
     partes.append("Preço: fechamento diário ajustado só por desdobramentos e grupamentos.")
+    if dg.get("analistas"):
+        partes.append("Linha tracejada verde-azulada: média dos preços-alvo públicos dos analistas (o último de cada casa "
+                      "nos 12 meses anteriores, na base de ações de hoje); perspectiva de terceiros, não é estimativa do modelo.")
     if dg.get("eventos"):
         partes.append("Linhas verticais: pontilhadas para eventos (desdobramentos, grupamentos e mudanças de regras) e "
                       "tracejadas para quebras estruturais detectadas (diagnóstico; detalhes no relatório).")

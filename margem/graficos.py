@@ -4,6 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from . import analistas as A
 from . import precos as P
 
 
@@ -28,7 +29,8 @@ def ajuste_pos_analise(V: float, data_analise, ate, diario: pd.DataFrame, desd: 
 
 
 def montar(diario: pd.DataFrame, desd: pd.DataFrame, prov: pd.DataFrame, mensal: pd.DataFrame | None,
-           analise: dict, historico_ativo: list[dict], ate, tracejado: bool, eventos: list[dict]) -> dict:
+           analise: dict, historico_ativo: list[dict], ate, tracejado: bool, eventos: list[dict],
+           alvos: list[dict] | None = None, validade_meses: int = 12) -> dict:
     ate = pd.Timestamp(ate).normalize()
     base = ate
     d = diario[diario["data"] <= ate]
@@ -47,6 +49,8 @@ def montar(diario: pd.DataFrame, desd: pd.DataFrame, prov: pd.DataFrame, mensal:
         "eventos": numerar_marcas([e for e in eventos if ini < pd.Timestamp(e["data"]) <= ate]),
         "justo": [], "historico": [], "tracejado": [],
     }
+    # Média dos preços-alvo públicos dos analistas (terceiros), na base de ações de `base`.
+    out["analistas"] = A.linha(alvos, desd, ini, ate, base, validade_meses)
     if not analise.get("estimativa"):
         return out
     if mensal is not None and len(mensal):
