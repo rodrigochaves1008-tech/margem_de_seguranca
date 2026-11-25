@@ -39,9 +39,11 @@ def comparar_futuro(serie_v: pd.Series, preco_mensal: pd.Series, desd: pd.DataFr
 
 
 def tabela_backtest(mensal: pd.DataFrame, preco_mensal: pd.Series, desd: pd.DataFrame, base_hoje,
-                    alvos: list[str], horizontes=(6, 12)) -> pd.DataFrame:
+                    alvos: list[str], horizontes=(6, 12), metodo: str = "menor_erro") -> pd.DataFrame:
     linhas = []
-    series = {"escolha do walk-forward": mensal["V"], "passeio aleatório (último preço)": mensal["preco"]}
+    media = metodo == "media_simples"
+    primeira = ("modelo: " + C.NOMES_MODELOS["media_todos"]) if media else "escolha do walk-forward"
+    series = {primeira: mensal["V"], "passeio aleatório (último preço)": mensal["preco"]}
     for a in alvos:
         for m in list(C.MODELOS) + ["ensemble_todos", "ens_pca", "ensemble_todos_pca"]:
             col = f"V__{m}|{a}"
@@ -49,6 +51,8 @@ def tabela_backtest(mensal: pd.DataFrame, preco_mensal: pd.Series, desd: pd.Data
                 series[f"{C.NOMES_MODELOS[m]} · alvo {C.NOMES_ALVOS[a]}"] = mensal[col]
     if "V__ensemble_geral|todos" in mensal:
         series[C.NOMES_MODELOS["ensemble_geral"]] = mensal["V__ensemble_geral|todos"]
+    if "V__media_todos|todos" in mensal and not media:
+        series[C.NOMES_MODELOS["media_todos"]] = mensal["V__media_todos|todos"]
     for nome, s in series.items():
         reg = {"modelo": nome}
         for h in horizontes:
@@ -140,7 +144,7 @@ def avaliar(mensal, hoje: dict, linha_hoje: pd.Series, base: pd.DataFrame, preco
             motivos.append(f"preço justo {rz:.1f} vezes o preço (fora do intervalo de sanidade)")
     vs = hoje.get("variacao_sementes", 0.0)
     if np.isfinite(vs) and vs > float(c["variacao_sementes_max"]):
-        motivos.append(f"a rede neural muda {fmt_pct(vs)} entre sementes (instável)")
+        motivos.append(f"o preço justo muda {fmt_pct(vs)} entre as sementes da rede neural (instável)")
     res["motivos"] = motivos
     res["confiavel"] = not motivos
     return res

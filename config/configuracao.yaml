@@ -44,6 +44,12 @@ modelo:
     meses_fechados_min: 12          # resultados fechados mínimos para escolher; antes disso, o padrão
     janela_meses: 60                # usa os últimos 60 meses fechados
     candidato_padrao: "ensemble_todos|log_pvp"
+    # Método (decisão do usuário de 25/11/2026): "media_simples" usa sempre o candidato fixo abaixo, a média simples
+    # de todos os modelos e alvos, sem escolher pelo erro. Foi decidido depois de ver o backtest do período todo: o
+    # teste honesto é só com os meses depois de "metodo_desde". "menor_erro" volta à escolha pelo menor erro médio.
+    metodo: "media_simples"
+    candidato_fixo: "media_todos|todos"
+    metodo_desde: "2026-11-25"
   selecao_variaveis:
     cobertura_min: 0.90             # no período de treino
     correlacao_max: 0.90            # acima disso, a variável é redundante

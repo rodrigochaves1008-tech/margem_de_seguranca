@@ -33,7 +33,8 @@ NOMES_MODELOS = {
     "pca_ridge": "ridge sobre componentes principais (PCA)", "pca_rn": "rede neural sobre componentes principais (PCA)",
     "ens_pca": "média: ridge + rede sobre componentes principais",
     "ensemble_todos_pca": "média dos cinco modelos (três + dois sobre componentes principais)",
-    "ensemble_geral": "média de todos os modelos e alvos", "passeio": "passeio aleatório (último preço)",
+    "ensemble_geral": "média de todos os modelos e alvos",
+    "media_todos": "média simples de todos os modelos e alvos (com PCA)", "passeio": "passeio aleatório (último preço)",
 }
 NOMES_ALVOS = {"log_valor_mercado": "valor de mercado", "log_pl": "P/L", "log_pvp": "P/VP",
                "log_ev_ebitda": "EV/EBITDA", "todos": "todos os alvos"}
@@ -43,6 +44,8 @@ def membros(modelo: str) -> tuple[str, ...]:
     """Modelos simples que compõem um candidato (ele mesmo, se não for média)."""
     if modelo == "ensemble_geral":
         return MODELOS_BASE
+    if modelo == "media_todos":
+        return MODELOS
     return ENSEMBLES.get(modelo, (modelo,))
 
 

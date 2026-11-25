@@ -36,7 +36,7 @@ def converter(alvo: str, yhat: np.ndarray, linhas: pd.DataFrame) -> np.ndarray:
 
 def nomes_candidatos(alvos: list[str]) -> list[str]:
     nomes = [f"{m}|{a}" for a in alvos for m in list(C.MODELOS) + list(C.ENSEMBLES)]
-    return nomes + ["ensemble_geral|todos"]
+    return nomes + ["ensemble_geral|todos", "media_todos|todos"]
 
 
 @dataclass
@@ -60,6 +60,7 @@ class Resultado:
 def _todas_previsoes(ajustes: dict, linhas: pd.DataFrame, alvos: list[str]) -> dict[str, np.ndarray]:
     out: dict[str, np.ndarray] = {}
     logs_base = []
+    logs_todos = []
     for a in alvos:
         aj = ajustes.get(a)
         if aj is None:
@@ -70,8 +71,12 @@ def _todas_previsoes(ajustes: dict, linhas: pd.DataFrame, alvos: list[str]) -> d
             out[f"{m}|{a}"] = v
             if m in C.MODELOS_BASE:
                 logs_base.append(np.log(v))
+            if m in C.MODELOS:
+                logs_todos.append(np.log(v))
     if logs_base:
         out["ensemble_geral|todos"] = np.exp(np.mean(logs_base, axis=0))
+    if logs_todos:
+        out["media_todos|todos"] = np.exp(np.mean(logs_todos, axis=0))
     return out
 
 
@@ -81,6 +86,18 @@ def _mais_meses(d: pd.Timestamp, h: int) -> pd.Timestamp:
 
 def escolher(r: pd.Timestamp, previsoes: pd.DataFrame, preco_mensal: pd.Series, desd: pd.DataFrame,
              cfg_escolha: dict, candidatos: list[str]) -> tuple[str, dict]:
+    """Candidato da data r. Método "menor_erro": o de menor erro médio nos resultados já fechados. Método
+    "media_simples" (decisão do usuário de 25/11/2026): sempre o candidato fixo, a média simples de todos os
+    modelos e alvos; as pontuações seguem calculadas só para comparação."""
+    melhor, pont = _escolher_menor_erro(r, previsoes, preco_mensal, desd, cfg_escolha, candidatos)
+    fixo = cfg_escolha.get("candidato_fixo")
+    if cfg_escolha.get("metodo", "menor_erro") == "media_simples" and fixo in candidatos:
+        return fixo, pont
+    return melhor, pont
+
+
+def _escolher_menor_erro(r: pd.Timestamp, previsoes: pd.DataFrame, preco_mensal: pd.Series, desd: pd.DataFrame,
+                         cfg_escolha: dict, candidatos: list[str]) -> tuple[str, dict]:
     """Candidato com menor erro médio (MAPE) contra o preço 6 e 12 meses depois, só com resultados
     já fechados em r. Sem resultados suficientes, usa o candidato padrão."""
     horizontes = [int(h) for h in cfg_escolha["horizontes_meses"]]
@@ -256,26 +273,36 @@ def _completar_faixa(mensal: pd.DataFrame, minimo: int) -> pd.DataFrame:
 
 
 def _variacao_sementes(passo: Passo, linha: pd.DataFrame) -> float:
-    """Coeficiente de variação do preço justo entre as sementes das redes neurais do candidato escolhido
-    (só checagem). Cada rede é medida sozinha, mesmo dentro de uma média com outros modelos."""
+    """Coeficiente de variação, entre as sementes das redes neurais, do preço justo do candidato escolhido (só
+    checagem): o preço justo é refeito com uma semente de cada vez nas redes, com os demais modelos iguais. Num
+    candidato só com a rede, é a variação da própria rede."""
     modelo, alvo = passo.escolhido.split("|")
-    redes = [m for m in C.membros(modelo) if m in C.REDES]
-    if not redes:
+    ms = C.membros(modelo)
+    if not any(m in C.REDES for m in ms):
         return 0.0
-    cvs = []
-    for a, aj in passo.ajustes.items():
-        if alvo != "todos" and a != alvo:
+    alvos = list(passo.ajustes) if alvo == "todos" else [alvo]
+    logs, n = [], None
+    for a in alvos:
+        aj = passo.ajustes.get(a)
+        if aj is None:
             continue
-        for m in redes:
+        for m in ms:
             if m not in aj.modelos:
                 continue
-            por_semente = aj.modelos[m].prever_por_semente(aj.matriz(linha, m))[:, 0]
-            v = converter(a, por_semente, pd.concat([linha] * len(por_semente)))
-            v = v[np.isfinite(v)]
-            if len(v) and np.mean(v) > 0:
-                cvs.append(float(np.std(v) / np.mean(v)))
-    # Maior variação entre sementes, rede a rede e alvo a alvo (sem misturar a diferença entre alvos).
-    return max(cvs) if cvs else 0.0
+            X = aj.matriz(linha, m)
+            if m in C.REDES:
+                y = aj.modelos[m].prever_por_semente(X)[:, 0]
+                n = len(y)
+            else:
+                y = np.asarray(aj.modelos[m].predict(X), float)
+            v = converter(a, y, pd.concat([linha] * len(y)))
+            logs.append(np.log(np.where(v > 0, v, np.nan)))
+    if not logs or n is None:
+        return 0.0
+    M = np.vstack([np.broadcast_to(x, (n,)) if len(x) == 1 else x for x in logs])   # membros × sementes
+    V = np.exp(np.nanmean(M, axis=0))
+    V = V[np.isfinite(V)]
+    return float(np.std(V) / np.mean(V)) if len(V) and np.mean(V) > 0 else 0.0
 
 
 def refazer_passo(base: pd.DataFrame, r: pd.Timestamp, alvos: list[str], candidatas_vars: list[str], cfg: dict,

@@ -100,7 +100,8 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
     jan = avaliacao.janela_backtest(mensal, hoje, anos) if len(mensal) else mensal
     horizontes_bt = tuple(sorted(set(int(h) for h in cfg["modelo"]["escolha"]["horizontes_meses"])
                                  | set(avaliacao.limites_contra_passeio(cfg))))
-    bt = (avaliacao.tabela_backtest(jan, preco_mensal, desd, hoje, setor["alvos"], horizontes=horizontes_bt)
+    bt = (avaliacao.tabela_backtest(jan, preco_mensal, desd, hoje, setor["alvos"], horizontes=horizontes_bt,
+                                    metodo=cfg["modelo"]["escolha"].get("metodo", "menor_erro"))
           if len(jan) else pd.DataFrame())
     sinais = avaliacao.margem_como_sinal(jan, base, dados.precos.diario, desd, dados.precos.proventos, cfg) if len(jan) else []
     anos_fotos = max(3, anos - 1)
@@ -234,8 +235,12 @@ def _diagnostico_pca(ticker, res, base, hoje, setor, candidatas, cfg, imp, fotos
                      ("candidato a sair", "Candidatos a sair")):
         if cont.get(rec):
             texto.append(f"{rot}: {nomes(rec)}.")
-    texto.append(f"Candidatos sobre componentes principais escolhidos pelo walk-forward: {n_pca} dos {len(usa_pca)} "
-                 "retreinos do período fora da amostra.")
+    if cfg_m["escolha"].get("metodo") == "media_simples":
+        texto.append("Os dois modelos sobre componentes principais entram na média simples do preço justo, com o mesmo "
+                     "peso dos demais, em todos os retreinos.")
+    else:
+        texto.append(f"Candidatos sobre componentes principais escolhidos pelo walk-forward: {n_pca} dos {len(usa_pca)} "
+                     "retreinos do período fora da amostra.")
     return {"pca": {"ok": True, "data": d["data"], "k": d["k"], "n": len(d["variaveis"]),
                     "fatores": PCA_P.fatores_de_hoje(d, preditores.nome_preditor)[:5],
                     "tabela": tab.to_dict("records"), "tempo": tempo_ano, "texto": texto, "nota": PCA_P.NOTA}}
@@ -535,8 +540,10 @@ def _contexto_relatorio(ticker, info, setor, a, aval, imp, val, bt, jan, res, ba
         melhor = outros.sort_values(L).iloc[0] if len(outros) else None
         venceu_l = "o modelo" if esc[L] < rw[L] else "o passeio aleatório"
         venceu_c = "o modelo" if esc[Cc] < rw[Cc] else "o passeio aleatório"
-        texto_bt = (f"Nos {int(esc[f'n_{h_longo}m'])} meses fora da amostra com preço {h_longo} meses depois já conhecido, a "
-                    f"escolha do walk-forward errou em média {formatos.pct(esc[L], 1)}, contra {formatos.pct(rw[L], 1)} "
+        quem = ("o modelo (média simples de todos os modelos e alvos)"
+                if cfg["modelo"]["escolha"].get("metodo") == "media_simples" else "a escolha do walk-forward")
+        texto_bt = (f"Nos {int(esc[f'n_{h_longo}m'])} meses fora da amostra com preço {h_longo} meses depois já conhecido, "
+                    f"{quem} errou em média {formatos.pct(esc[L], 1)}, contra {formatos.pct(rw[L], 1)} "
                     f"do passeio aleatório: ganhou {venceu_l}. Em {h_curto} meses: {formatos.pct(esc[Cc], 1)} contra "
                     f"{formatos.pct(rw[Cc], 1)} ({venceu_c}).")
         if melhor is not None:
@@ -547,6 +554,7 @@ def _contexto_relatorio(ticker, info, setor, a, aval, imp, val, bt, jan, res, ba
     cont = res.escolhas["escolhido"].value_counts() if len(res.escolhas) else pd.Series(dtype=int)
     contagem = "; ".join(f"{C.NOMES_MODELOS.get(k.split('|')[0], k)} ({C.NOMES_ALVOS.get(k.split('|')[1], '')}): {v}"
                          for k, v in cont.items())
+    nota_metodo = _nota_metodo(cfg, res.mensal, hoje)
 
     # Valuation
     ref = V if confiavel else preco
@@ -555,7 +563,7 @@ def _contexto_relatorio(ticker, info, setor, a, aval, imp, val, bt, jan, res, ba
                 for m in val["metodos"]]
     texto_val = _texto_valuation(val, val_rows, confiavel, linha_hoje, base, hoje)
 
-    limitacoes = _limitacoes(dados, aval, setor)
+    limitacoes = (_limitacoes(dados, aval, setor) + _limitacao_metodo(cfg))
     cob = macro.cobertura(dados.series, dados.ids_series, [])
     familias = {"macro_brasil": "macro Brasil", "exterior": "exterior", "setor": "setor", "empresa": "empresa"}
     for c in cob:
@@ -607,7 +615,7 @@ def _contexto_relatorio(ticker, info, setor, a, aval, imp, val, bt, jan, res, ba
         "janela_comparacao": cfg["estimativa_confiavel"]["janela_comparacao_meses"], "razao12": r12, "razao6": r6,
         "h_longo": h_longo, "h_curto": h_curto,
         "bt_horizontes": sorted({int(c.split("_")[1][:-1]) for c in (bt.columns if len(bt) else []) if c.startswith("mape_")}),
-        "n_retreinos": len(res.escolhas), "contagem_escolhas": contagem,
+        "n_retreinos": len(res.escolhas), "contagem_escolhas": contagem, "nota_metodo": nota_metodo,
         "valuation": val_rows, "texto_valuation": texto_val,
         "rotulo_dif": "Diferença para o preço justo do modelo" if confiavel else "Diferença para o preço atual",
         "custo_ida_volta": float(cfg["custos"]["ida_e_volta"]),
@@ -732,6 +740,35 @@ def _texto_valuation(val, rows, confiavel, linha, base, hoje) -> list[str]:
     return txt
 
 
+def _nota_metodo(cfg, mensal, hoje) -> str:
+    """Ressalva do método da média simples, decidido depois de ver o backtest do período todo."""
+    esc = cfg["modelo"]["escolha"]
+    if esc.get("metodo", "menor_erro") != "media_simples":
+        return ""
+    desde = pd.Timestamp(esc.get("metodo_desde", "2026-11-25"))
+    primeiro = (desde + pd.offsets.MonthEnd(0)).normalize()
+    meses = [d for d in (mensal.index if mensal is not None and len(mensal) else []) if d >= primeiro]
+    n6 = sum(1 for d in meses if (d + pd.offsets.MonthEnd(6)).normalize() <= pd.Timestamp(hoje))
+    n12 = sum(1 for d in meses if (d + pd.offsets.MonthEnd(12)).normalize() <= pd.Timestamp(hoje))
+    return (f"o preço justo é a média simples de todos os modelos e alvos, sem escolha pelo menor erro, por decisão do "
+            f"usuário de {formatos.data(desde)}. A decisão foi tomada depois de ver o backtest do período todo, em que essa "
+            "média errava menos que a escolha pelo menor erro dos últimos 60 meses. Por isso, os resultados do backtest "
+            f"antes de {formatos.data(desde)} são otimistas para este método. O teste honesto é só com os meses depois da "
+            f"decisão: até agora, {n6} resultados de 6 meses e {n12} de 12 meses fechados (o primeiro de 6 meses fecha em "
+            f"{formatos.mes((primeiro + pd.offsets.MonthEnd(6)).normalize())} e o primeiro de 12 meses, em "
+            f"{formatos.mes((primeiro + pd.offsets.MonthEnd(12)).normalize())}).")
+
+
+def _limitacao_metodo(cfg) -> list[str]:
+    esc = cfg["modelo"]["escolha"]
+    if esc.get("metodo", "menor_erro") != "media_simples":
+        return []
+    return ["Método do preço justo (média simples de todos os modelos e alvos) decidido em "
+            f"{formatos.data(pd.Timestamp(esc.get('metodo_desde', '2026-11-25')))}, depois de ver o backtest do período "
+            "todo: os resultados do backtest antes dessa data são otimistas para este método; o teste honesto é só com "
+            "os meses seguintes."]
+
+
 def _limitacoes(dados, aval, setor) -> list[str]:
     lim = list(dados.notas)
     lim.append("Fundamentos: para bancos com consolidadas trimestrais incompletas na CVM, são usadas as demonstrações "
@@ -769,7 +806,7 @@ def _limitacoes(dados, aval, setor) -> list[str]:
 
 def _metodologia(setor, cfg) -> list[str]:
     m = cfg["modelo"]
-    return [
+    itens = [
         "Alvo: valor de mercado, P/L e P/VP (em log), sempre convertidos para preço por ação na base de ações da data. "
         "O preço é o fechamento ajustado só por desdobramentos e grupamentos; nunca o ajustado por proventos.",
         "Base mensal point-in-time: cada balanço entra na data de entrega à CVM; cada série macro, no calendário de "
@@ -805,6 +842,14 @@ def _metodologia(setor, cfg) -> list[str]:
         "Fontes: CVM dados abertos (DFP, ITR, FRE); B3 (COTAHIST); Yahoo Finance (proventos, desdobramentos, índices); "
         "Banco Central (SGS e Boletim Focus); Tesouro Transparente (Tesouro Direto); FRED; Ipeadata.",
     ]
+    if m["escolha"].get("metodo") == "media_simples":
+        itens.insert(4, "Preço justo: desde " + formatos.data(pd.Timestamp(m["escolha"].get("metodo_desde", "2026-11-25")))
+                     + ", por decisão do usuário, a média simples (geométrica) das estimativas de todos os modelos (rede "
+                     "neural, ridge, boosting e os dois sobre componentes principais) e de todos os alvos, sem escolha pelo "
+                     "erro; os demais candidatos aparecem no backtest só para comparação. O método foi decidido depois de "
+                     "ver o backtest do período todo (ver a ressalva no backtest). Variação entre sementes: a do próprio "
+                     "preço justo, refeito com uma semente de cada vez nas redes.")
+    return itens
 
 
 # ------------------------------------------------------------------ lotes

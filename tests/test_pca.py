@@ -4,6 +4,7 @@ import pandas as pd
 
 from margem import pca_preditores as PCA_P
 from margem.modelo import candidatos as C
+from margem.modelo import walkforward as WF
 
 CFG = {"meses_treino_min": 36, "sementes": [11, 23],
        "selecao_variaveis": {"cobertura_min": 0.9, "correlacao_max": 0.9, "max_variaveis": 12, "obs_por_variavel": 10},
@@ -75,3 +76,27 @@ def test_recomendacao():
                                     {"data": "2021-01-31", "alvo": "x", "variaveis": ["a0", "b0"]},
                                     {"data": "2021-01-31", "alvo": "painel:x", "variaveis": ["ruido"]}], None, ["x"])
     assert n == 2 and fr["a0"] == 1.0 and fr["b0"] == 0.5 and "ruido" not in fr
+
+
+def test_media_simples_e_variacao_entre_sementes():
+    b = _base()
+    b["acoes"], b["preco"] = 1.0, np.exp(b["log_valor_mercado"])
+    aj = C.ajustar(b.iloc[:100], "log_valor_mercado", CANDIDATAS, CFG)
+    out = WF._todas_previsoes({"log_valor_mercado": aj}, b.iloc[100:], ["log_valor_mercado"])
+    logs = np.mean([np.log(out[f"{m}|log_valor_mercado"]) for m in C.MODELOS], axis=0)
+    assert np.allclose(out["media_todos|todos"], np.exp(logs)) and C.membros("media_todos") == C.MODELOS
+    linha = b.iloc[[105]]
+
+    def var(esc):
+        return WF._variacao_sementes(WF.Passo(data=b.index[100], retreino=b.index[100],
+                                              ajustes={"log_valor_mercado": aj}, escolhido=esc, pontuacoes={}), linha)
+    assert var("ridge|log_valor_mercado") == 0.0
+    v_redes = max(var("rn|log_valor_mercado"), var("pca_rn|log_valor_mercado"))
+    assert v_redes > 0 and 0 < var("media_todos|todos") < v_redes
+    cfg = {"metodo": "media_simples", "candidato_fixo": "media_todos|todos", "horizontes_meses": [6, 12],
+           "janela_meses": 60, "meses_fechados_min": 12, "candidato_padrao": "ensemble_todos|log_pvp"}
+    cands = WF.nomes_candidatos(["log_valor_mercado"])
+    sem_desd = pd.DataFrame({"data": pd.to_datetime([]), "fator": pd.Series([], dtype=float)})
+    assert WF.escolher(b.index[50], pd.DataFrame(columns=cands), b["preco"], sem_desd, cfg, cands)[0] == "media_todos|todos"
+    cfg["metodo"] = "menor_erro"
+    assert WF.escolher(b.index[50], pd.DataFrame(columns=cands), b["preco"], sem_desd, cfg, cands)[0] == cands[0]
