@@ -138,8 +138,21 @@ Atualize esta seção ao fim de cada fase.
   escolha. A média simples de todos os modelos e alvos ganharia do passeio nos últimos 60 meses: sem PCA, 91% / 88%, faixa
   88%, erro típico 6,1%; com PCA, 83% / 79%, faixa 85%, erro típico 7,6%. O ponto fraco é a escolha pelo menor erro dos
   últimos 60 meses, não os preditores. Adotar a média simples agora seria escolher olhando o período todo.
-- Aguardando o usuário: (1) voltar aos candidatos da 1.2.0, mantendo só o diagnóstico de PCA; (2) manter a 1.3.0; ou
-  (3) trocar a escolha pela média simples, sabendo do viés. Depois, se junta o branch `pca` na `main`.
+- 25/11/2026: o usuário escolheu a opção 3 (decisão 12) e mandou juntar na `main` (feito). Versão do modelo 1.4.0
+  (código 0.9.0):
+  - o preço justo é sempre a média simples (geométrica) de todos os modelos (rede, ridge, boosting e os dois sobre
+    componentes principais) e alvos (`escolha.metodo: media_simples`, candidato `media_todos|todos`);
+  - ressalva no relatório (backtest, limitações e metodologia) e acompanhamento dos meses depois de 25/11/2026, o único
+    teste honesto: o primeiro resultado de 6 meses fecha em mai/2027 e o de 12 meses, em nov/2027;
+  - variação entre sementes medida no próprio preço justo (uma semente de cada vez nas redes), não mais em cada rede
+    sozinha;
+  - ranking dos preditores dos retreinos passados guardado por versão (`importancia_retreinos.parquet`).
+- Resultado da versão 1.4.0 no BBAS3 (preços de 24/11/2026): estimativa confiável, a primeira do projeto, com a ressalva
+  acima. Preço justo R$ 18,78 (faixa de 80%: R$ 14,98 a R$ 21,43) contra R$ 14,18; margem +24,5% (desconto moderado),
+  acima do erro típico de 7,6%. Erro ÷ passeio 83% (12 meses) / 79% (6 meses); preço dentro da faixa em 85% dos 120 meses.
+  Principal preditor: patrimônio (conversão do P/VP), para cima. Teste de vazamento passou (11/2014, 10/2016, 11/2024;
+  diferença 0,000000). Tempo: walk-forward completo 12,8 min; primeira rodada guardando as fotos 13,3 min; rodada
+  seguinte 1,7 min. Ranking dos ativos: BBAS3 1º de 1 com estimativa (WEGE3 e CMIG4 seguem fora, a pedido).
 - Pendente no PC: rodar de novo o `instalar.ps1`, que instala o `ruptures` e a skill nova.
 - Não apresente o plano de novo. Não mude o desenho do modelo olhando o backtest do período
   todo sem dizer isso ao usuário (seria escolher com o período todo).
@@ -193,6 +206,13 @@ Notas técnicas aprendidas na Fase 1:
    Substitui, na tela e no relatório, o "mostrar o motivo no lugar deste gráfico" da especificação.
 11. Ranking da margem de segurança dos últimos 10 anos (24/11/2026), com a posição e o percentil da margem
    de hoje, para ver se ela está perto do topo: resumo na tela e tabela no relatório (seção 2).
+
+12. Média simples no lugar da escolha pelo menor erro (25/11/2026): o preço justo é a média simples de todos os
+   modelos e alvos, inclusive os dois sobre componentes principais (PCA), sem escolher pelo erro. Decidida depois de ver
+   o backtest do período todo do BBAS3, em que a escolha pelo menor erro dos últimos 60 meses errava mais que a média
+   (com o PCA na disputa, 171% / 157% do passeio). O relatório traz a ressalva; o teste honesto é só com os meses depois
+   de 25/11/2026. Substitui, para o preço justo, a "escolha entre alvos, modelos e ensemble" da especificação; o
+   critério de estimativa confiável não mudou. Para voltar: `escolha.metodo: menor_erro` em `config/configuracao.yaml`.
 
 Os itens 2 a 4 são as propostas do plano, adotadas sem objeção do usuário. Ele pode mudá-las.
 
