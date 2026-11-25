@@ -118,16 +118,28 @@ Atualize esta seção ao fim de cada fase.
 - 24/11/2026: a pedido do usuário, saíram a linha dos preços-alvo dos analistas e o estudo das épocas de
   margem alta (decisões 8 e 9 retiradas). Código 0.6.0; o modelo segue 1.2.0.
 - 24/11/2026: decisões 10 e 11 feitas (código 0.7.0; o modelo segue 1.2.0).
-- 24/11/2026, pedido em aberto: modelo confiável, que passe em todos os critérios, usando PCA para ver quais
-  preditores são melhores e se é preciso eliminar ou reciclar preditores. Pausa pela regra dos créditos às
-  ~20:55; volta agendada para 22:53 (horário de Brasília). Plano ao voltar, só no BBAS3, com as regras
-  definidas antes de rodar e sem escolher nada olhando o período todo:
-  1. diagnóstico de PCA dos preditores em cada retreino, só com dados até a data (cargas, grupos
-     redundantes, preditores isolados), cruzado com a importância (SHAP e permutação) ao longo do tempo,
-     para dizer quais manter, eliminar ou juntar num fator;
-  2. candidatos novos no walk-forward com os componentes principais como entrada (regressão e rede sobre
-     os componentes), disputando a escolha com os demais;
-  3. nova versão do modelo, walk-forward completo, teste de vazamento e o resultado honesto: passou ou não.
+- 24/11/2026: o usuário pediu um modelo confiável, que passe em todos os critérios, usando PCA para ver quais preditores
+  são melhores e se é preciso eliminar ou reciclar preditores (só o BBAS3). Feito em 25/11/2026 (madrugada) no branch `pca`
+  (modelo 1.3.0, código 0.8.0), ainda não juntado na `main`:
+  - candidatos novos, definidos antes de rodar: ridge e rede sobre os k componentes principais de todas as candidatas com
+    cobertura (k = 90% da variação, até o limite da seleção), a média dos dois e a média dos cinco modelos; disputam a
+    escolha com os demais (`modelo.componentes_principais` em `config/configuracao.yaml`);
+  - diagnóstico de PCA na seção 4 do relatório (`margem/pca_preditores.py`): fatores, grupos redundantes, comunalidade,
+    SHAP e permutação em 10 fotos anuais, frequência do LASSO e recomendação por preditor (regras definidas antes de rodar).
+- Resultado da versão 1.3.0 no BBAS3 (preços de 24/11/2026): sem estimativa confiável e pior que a 1.2.0. Erro ÷ passeio
+  171% (12 meses) / 157% (6 meses), contra 122% / 117%; faixa de 80% com 77% dos meses; erro típico 10,4%. Os candidatos
+  antigos ficaram idênticos (diferença R$ 0,00): a piora vem da escolha, que pegou os de PCA em 16 dos 39 retreinos fora da
+  amostra. Teste de vazamento passou (11/2014, 10/2016, 11/2024; diferença 0,000000). Rodada completa: 3,0 min.
+- PCA dos preditores (retreino de 25/11/2026): 44 candidatos; 10 componentes explicam 91% da variação. F1 (24%) juros
+  (Treasuries, Fed funds, Selic); F2 (19%) inflação e expectativas; F3 (13%) alavancagem, lucro e inadimplência; F4 (11%)
+  commodities; F5 (8%) PIB esperado, margem financeira e inadimplência das pessoas físicas. 4 grupos redundantes
+  (11 preditores). Recomendação: 16 manter, 26 reciclar no fator, 2 candidatos a sair (VIX e Brent).
+- Diagnóstico olhando o período todo (só informativo, não usado em escolha): vários candidatos fixos erram menos que a
+  escolha. A média simples de todos os modelos e alvos ganharia do passeio nos últimos 60 meses: sem PCA, 91% / 88%, faixa
+  88%, erro típico 6,1%; com PCA, 83% / 79%, faixa 85%, erro típico 7,6%. O ponto fraco é a escolha pelo menor erro dos
+  últimos 60 meses, não os preditores. Adotar a média simples agora seria escolher olhando o período todo.
+- Aguardando o usuário: (1) voltar aos candidatos da 1.2.0, mantendo só o diagnóstico de PCA; (2) manter a 1.3.0; ou
+  (3) trocar a escolha pela média simples, sabendo do viés. Depois, se junta o branch `pca` na `main`.
 - Pendente no PC: rodar de novo o `instalar.ps1`, que instala o `ruptures` e a skill nova.
 - Não apresente o plano de novo. Não mude o desenho do modelo olhando o backtest do período
   todo sem dizer isso ao usuário (seria escolher com o período todo).
