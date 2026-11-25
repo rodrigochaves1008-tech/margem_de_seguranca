@@ -104,10 +104,9 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
                                     metodo=cfg["modelo"]["escolha"].get("metodo", "menor_erro"))
           if len(jan) else pd.DataFrame())
     sinais = avaliacao.margem_como_sinal(jan, base, dados.precos.diario, desd, dados.precos.proventos, cfg) if len(jan) else []
-    anos_fotos = max(3, anos - 1)
-    progresso(f"{ticker}: ranking dos preditores no tempo (uma foto por ano, até {anos_fotos} anos atrás)")
+    progresso(f"{ticker}: ranking dos preditores no tempo (1, 2 e 3 anos atrás e uma foto por ano, guardadas por versão)")
     historia_preditores, fotos_preditores = _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, imp,
-                                                                 anos_max=anos_fotos)
+                                                                 ticker=ticker, versao=versao)
     progresso(f"{ticker}: mudanças estruturais (quebras e eventos)")
     estr = estruturais.analisar(ticker, info["setor"], base, dados.precos.diario, desd, res.passos_hoje, imp, hoje, cfg)
     if estr["pesquisa"].get("situacao") != "ok":
@@ -150,9 +149,48 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
 
 # ------------------------------------------------------------------ fase 2: preditores no tempo e sinais
 
-def _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, imp_hoje, anos_max: int = 3):
-    """Ranking dos preditores hoje e nos retreinos de 1 a `anos_max` anos atrás (modelos refeitos, iguais aos da
-    época). Devolve a tabela de 1, 2 e 3 anos atrás e as fotos anuais (para o diagnóstico de PCA)."""
+class _FotosImportancia:
+    """Ranking dos preditores de retreinos passados, guardado por versão do modelo. Refazer um retreino passado é
+    determinístico (a mesma versão dá o mesmo resultado), então cada foto é calculada uma vez só."""
+
+    def __init__(self, ticker, versao):
+        self.p = caminhos.pasta_ultima_rodada(ticker) / "importancia_retreinos.parquet" if ticker else None
+        self.versao = str(versao)
+        self.tab = pd.DataFrame()
+        if self.p is not None and self.p.exists():
+            try:
+                t = pd.read_parquet(self.p)
+                self.tab = t[t["versao"] == self.versao]
+            except Exception:
+                self.tab = pd.DataFrame()
+        self.novos: list = []
+
+    def ler(self, r):
+        if not len(self.tab):
+            return None
+        x = self.tab[self.tab["retreino"] == pd.Timestamp(r)]
+        if not len(x):
+            return None
+        return (x.drop(columns=["versao", "retreino"]).sort_values("importancia", ascending=False)
+                .reset_index(drop=True))
+
+    def guardar(self, r, imp):
+        t = imp.drop(columns=["explicacao"], errors="ignore").copy()
+        t["versao"], t["retreino"] = self.versao, pd.Timestamp(r)
+        self.novos.append(t)
+
+    def salvar(self):
+        if self.p is None or not self.novos:
+            return
+        t = pd.concat(([self.tab] if len(self.tab) else []) + self.novos, ignore_index=True)
+        self.p.parent.mkdir(parents=True, exist_ok=True)
+        t.to_parquet(self.p, index=False)
+
+
+def _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, imp_hoje, ticker=None, versao=""):
+    """Ranking dos preditores hoje e nos retreinos de 1, 2 e 3 anos atrás (modelos refeitos, iguais aos da época),
+    e as fotos anuais do período fora da amostra (o último retreino de cada ano fechado), para o diagnóstico de PCA.
+    As fotos de retreinos passados ficam guardadas por versão do modelo."""
     if res.escolhas is None or not len(res.escolhas) or imp_hoje is None:
         return [], ([imp_hoje] if imp_hoje is not None else [])
     def nome_modelo(c):
@@ -163,22 +201,36 @@ def _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, imp_hoje, anos
             "comuns": None, "correlacao": None, "modelo": nome_modelo(res.hoje.get("escolhido"))}]
     top_hoje = list(imp_hoje.head(5)["variavel"])
     esc = res.escolhas.sort_values("data")
+    guardadas = _FotosImportancia(ticker, versao)
+
+    def foto(r, escolhido):
+        imp = guardadas.ler(r)
+        if imp is None:
+            passo = WF.refazer_passo(base, r, setor["alvos"], candidatas, cfg, escolhido)
+            if passo is None or r not in base.index:
+                return None
+            try:
+                imp = preditores.importancia(passo, base, r, setor)
+            except Exception:
+                return None
+            guardadas.guardar(r, imp)
+        return imp
+
     fotos = [imp_hoje]
-    for anos in range(1, anos_max + 1):
+    inicio = pd.Timestamp(hoje) - pd.DateOffset(years=int(cfg["modelo"]["anos_fora_amostra"]))
+    f = esc[(esc["data"] >= inicio) & (esc["data"].dt.year < pd.Timestamp(hoje).year)]
+    for _, x in f.groupby(f["data"].dt.year).tail(1).iterrows():
+        imp = foto(pd.Timestamp(x["data"]), x["escolhido"])
+        if imp is not None:
+            fotos.append(imp)
+    for anos in (1, 2, 3):
         alvo = hoje - pd.DateOffset(years=anos)
         x = esc[esc["data"] <= alvo]
         if x.empty:
             continue
         r = pd.Timestamp(x["data"].iloc[-1])
-        passo = WF.refazer_passo(base, r, setor["alvos"], candidatas, cfg, x["escolhido"].iloc[-1])
-        if passo is None or r not in base.index:
-            continue
-        try:
-            imp = preditores.importancia(passo, base, r, setor)
-        except Exception:
-            continue
-        fotos.append(imp)
-        if anos > 3:
+        imp = foto(r, x["escolhido"].iloc[-1])
+        if imp is None:
             continue
         comum = imp.set_index("variavel")["importancia"].reindex(imp_hoje["variavel"]).dropna()
         corr = (imp_hoje.set_index("variavel")["importancia"].reindex(comum.index).rank()
@@ -187,6 +239,7 @@ def _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, imp_hoje, anos
                     "top": imp.head(5)[["nome", "importancia"]].to_dict("records"),
                     "comuns": len(set(imp.head(5)["variavel"]) & set(top_hoje)), "correlacao": corr,
                     "n_comuns": len(comum), "modelo": nome_modelo(x["escolhido"].iloc[-1])})
+    guardadas.salvar()
     return out, fotos
 
 
