@@ -66,11 +66,11 @@ def variaveis_do_modelo(passo) -> list[str]:
     if passo is None:
         return []
     vs: list[str] = []
-    for a, _ in preditores._componentes(passo):
+    for a, m in preditores._componentes(passo):
         aj = passo.ajustes.get(a)
         if aj is None:
             continue
-        for v in list(aj.variaveis) + CANAIS_DA_CONVERSAO.get(a, []):
+        for v in list(aj.colunas(m)) + CANAIS_DA_CONVERSAO.get(a, []):
             if v not in vs:
                 vs.append(v)
     return vs

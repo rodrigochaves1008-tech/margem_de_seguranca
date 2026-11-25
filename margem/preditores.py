@@ -29,17 +29,14 @@ def _componentes(passo) -> list[tuple[str, str]]:
     """(alvo, modelo) que compõem o candidato escolhido."""
     modelo, alvo = passo.escolhido.split("|")
     alvos = list(passo.ajustes) if alvo == "todos" else [alvo]
-    if modelo == "ensemble_geral":
-        return [(a, m) for a in alvos for m in C.MODELOS_BASE]
-    membros = C.ENSEMBLES.get(modelo, (modelo,))
-    return [(a, m) for a in alvos for m in membros]
+    return [(a, m) for a in alvos for m in C.membros(modelo)]
 
 
 def funcao_explicada(passo):
     comps = [(a, m) for a, m in _componentes(passo) if passo.ajustes.get(a) is not None]
     variaveis: list[str] = []
-    for a, _ in comps:
-        for v in passo.ajustes[a].variaveis:
+    for a, m in comps:
+        for v in passo.ajustes[a].colunas(m):
             if v not in variaveis:
                 variaveis.append(v)
     conv = []
@@ -55,8 +52,7 @@ def funcao_explicada(passo):
         partes = []
         for a, m in comps:
             aj = passo.ajustes[a]
-            X = df[aj.variaveis].fillna(aj.medianas).to_numpy(float)
-            y = np.asarray(aj.modelos[m].predict(X), float)
+            y = np.asarray(aj.modelos[m].predict(aj.matriz(df, m)), float)
             if a == "log_ev_ebitda":
                 ev = np.exp(y + df["_conv_ebitda"].to_numpy(float))
                 vm = ev - df[CONV_DIVIDA[0]].to_numpy(float)

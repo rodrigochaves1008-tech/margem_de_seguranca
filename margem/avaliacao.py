@@ -43,7 +43,7 @@ def tabela_backtest(mensal: pd.DataFrame, preco_mensal: pd.Series, desd: pd.Data
     linhas = []
     series = {"escolha do walk-forward": mensal["V"], "passeio aleatório (último preço)": mensal["preco"]}
     for a in alvos:
-        for m in list(C.MODELOS_BASE) + ["ensemble_todos"]:
+        for m in list(C.MODELOS) + ["ensemble_todos", "ens_pca", "ensemble_todos_pca"]:
             col = f"V__{m}|{a}"
             if col in mensal:
                 series[f"{C.NOMES_MODELOS[m]} · alvo {C.NOMES_ALVOS[a]}"] = mensal[col]

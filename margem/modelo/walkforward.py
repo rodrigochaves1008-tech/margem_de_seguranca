@@ -35,7 +35,7 @@ def converter(alvo: str, yhat: np.ndarray, linhas: pd.DataFrame) -> np.ndarray:
 
 
 def nomes_candidatos(alvos: list[str]) -> list[str]:
-    nomes = [f"{m}|{a}" for a in alvos for m in list(C.MODELOS_BASE) + list(C.ENSEMBLES)]
+    nomes = [f"{m}|{a}" for a in alvos for m in list(C.MODELOS) + list(C.ENSEMBLES)]
     return nomes + ["ensemble_geral|todos"]
 
 
@@ -256,21 +256,25 @@ def _completar_faixa(mensal: pd.DataFrame, minimo: int) -> pd.DataFrame:
 
 
 def _variacao_sementes(passo: Passo, linha: pd.DataFrame) -> float:
-    """Coeficiente de variação do preço justo entre as sementes da rede neural (só checagem)."""
+    """Coeficiente de variação do preço justo entre as sementes das redes neurais do candidato escolhido
+    (só checagem). Cada rede é medida sozinha, mesmo dentro de uma média com outros modelos."""
     modelo, alvo = passo.escolhido.split("|")
-    if modelo not in ("rn", "ens_rn_ridge", "ens_rn_gb", "ensemble_todos", "ensemble_geral"):
+    redes = [m for m in C.membros(modelo) if m in C.REDES]
+    if not redes:
         return 0.0
     cvs = []
     for a, aj in passo.ajustes.items():
         if alvo != "todos" and a != alvo:
             continue
-        X = linha[aj.variaveis].fillna(aj.medianas).to_numpy(float)
-        por_semente = aj.modelos["rn"].prever_por_semente(X)[:, 0]
-        v = converter(a, por_semente, pd.concat([linha] * len(por_semente)))
-        v = v[np.isfinite(v)]
-        if len(v) and np.mean(v) > 0:
-            cvs.append(float(np.std(v) / np.mean(v)))
-    # Maior variação entre sementes, alvo a alvo (sem misturar a diferença entre alvos).
+        for m in redes:
+            if m not in aj.modelos:
+                continue
+            por_semente = aj.modelos[m].prever_por_semente(aj.matriz(linha, m))[:, 0]
+            v = converter(a, por_semente, pd.concat([linha] * len(por_semente)))
+            v = v[np.isfinite(v)]
+            if len(v) and np.mean(v) > 0:
+                cvs.append(float(np.std(v) / np.mean(v)))
+    # Maior variação entre sementes, rede a rede e alvo a alvo (sem misturar a diferença entre alvos).
     return max(cvs) if cvs else 0.0
 
 

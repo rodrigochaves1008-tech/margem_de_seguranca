@@ -65,6 +65,12 @@ modelo:
     profundidade_max: 2
     folhas_min: 10
     l2: 1.0
+  # Candidatos com componentes principais (PCA), definidos antes de rodar (25/11/2026). Em cada retreino, só com
+  # os dados de treino: todas as candidatas com cobertura, padronizadas; k = menor número de componentes que
+  # explica a fração abaixo da variação delas, até o limite de variáveis da seleção (12 e 10 meses por variável).
+  # Ridge e rede neural sobre os k componentes disputam a escolha com os demais.
+  componentes_principais:
+    variancia_explicada: 0.90
 
 # Margem como sinal (Fase 2).
 custos:

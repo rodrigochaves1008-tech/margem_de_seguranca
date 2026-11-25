@@ -15,6 +15,7 @@ from . import (AVISO, avaliacao, caminhos, config, estruturais, formatos, grafic
 from .fontes import cvm as fonte_cvm
 from .modelo import candidatos as C
 from .modelo import walkforward as WF
+from . import pca_preditores as PCA_P
 from .saida import paginas
 
 
@@ -102,8 +103,10 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
     bt = (avaliacao.tabela_backtest(jan, preco_mensal, desd, hoje, setor["alvos"], horizontes=horizontes_bt)
           if len(jan) else pd.DataFrame())
     sinais = avaliacao.margem_como_sinal(jan, base, dados.precos.diario, desd, dados.precos.proventos, cfg) if len(jan) else []
-    progresso(f"{ticker}: ranking dos preditores de 1, 2 e 3 anos atrás")
-    historia_preditores = _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, imp)
+    anos_fotos = max(3, anos - 1)
+    progresso(f"{ticker}: ranking dos preditores no tempo (uma foto por ano, até {anos_fotos} anos atrás)")
+    historia_preditores, fotos_preditores = _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, imp,
+                                                                 anos_max=anos_fotos)
     progresso(f"{ticker}: mudanças estruturais (quebras e eventos)")
     estr = estruturais.analisar(ticker, info["setor"], base, dados.precos.diario, desd, res.passos_hoje, imp, hoje, cfg)
     if estr["pesquisa"].get("situacao") != "ok":
@@ -116,12 +119,15 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
     analise = _montar_analise(ticker, info, setor, versao, agora, h, aval, imp, dados, linha_hoje, rel_relativo)
 
     _salvar_ultima_rodada(ticker, analise, res, dados, imp, estr)
+    progresso(f"{ticker}: componentes principais (PCA) dos preditores")
+    ctx_pca = _diagnostico_pca(ticker, res, base, hoje, setor, candidatas, cfg, imp, fotos_preditores, jan)
     progresso(f"{ticker}: atualização rápida dos demais ativos")
     foto = ranking_dos_ativos.atualizar(novas={ticker: analise}, progresso=progresso)
     ctx = _contexto_relatorio(ticker, info, setor, analise, aval, imp, val, bt, jan, res, base, linha_hoje,
                               dados, foto, agora, hoje, cfg)
     ctx.update(_contexto_fase2(sinais, historia_preditores, pares, setor))
     ctx.update(_contexto_estruturais(estr))
+    ctx.update(ctx_pca)
     dg = graficos.montar(dados.precos.diario, desd, dados.precos.proventos, mensal, analise,
                          historico.do_ativo(ticker), pd.Timestamp(h["data_preco"]), tracejado=False,
                          eventos=graficos.eventos_de_preco(desd) + estr["marcas"],
@@ -143,10 +149,11 @@ def rodar_ativo(ticker: str, hoje=None, progresso=print, lote: bool = False) -> 
 
 # ------------------------------------------------------------------ fase 2: preditores no tempo e sinais
 
-def _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, imp_hoje) -> list[dict]:
-    """Ranking dos preditores nos retreinos de 1, 2 e 3 anos atrás (modelos refeitos, iguais aos da época)."""
+def _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, imp_hoje, anos_max: int = 3):
+    """Ranking dos preditores hoje e nos retreinos de 1 a `anos_max` anos atrás (modelos refeitos, iguais aos da
+    época). Devolve a tabela de 1, 2 e 3 anos atrás e as fotos anuais (para o diagnóstico de PCA)."""
     if res.escolhas is None or not len(res.escolhas) or imp_hoje is None:
-        return []
+        return [], ([imp_hoje] if imp_hoje is not None else [])
     def nome_modelo(c):
         m, a = (c or "|").split("|")
         return C.NOMES_MODELOS.get(m, m) + ("" if a in ("todos", "") else f", alvo {C.NOMES_ALVOS.get(a, a)}")
@@ -155,7 +162,8 @@ def _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, imp_hoje) -> l
             "comuns": None, "correlacao": None, "modelo": nome_modelo(res.hoje.get("escolhido"))}]
     top_hoje = list(imp_hoje.head(5)["variavel"])
     esc = res.escolhas.sort_values("data")
-    for anos in (1, 2, 3):
+    fotos = [imp_hoje]
+    for anos in range(1, anos_max + 1):
         alvo = hoje - pd.DateOffset(years=anos)
         x = esc[esc["data"] <= alvo]
         if x.empty:
@@ -168,6 +176,9 @@ def _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, imp_hoje) -> l
             imp = preditores.importancia(passo, base, r, setor)
         except Exception:
             continue
+        fotos.append(imp)
+        if anos > 3:
+            continue
         comum = imp.set_index("variavel")["importancia"].reindex(imp_hoje["variavel"]).dropna()
         corr = (imp_hoje.set_index("variavel")["importancia"].reindex(comum.index).rank()
                 .corr(comum.rank())) if len(comum) >= 4 else np.nan
@@ -175,7 +186,59 @@ def _preditores_no_tempo(res, base, hoje, setor, candidatas, cfg, imp_hoje) -> l
                     "top": imp.head(5)[["nome", "importancia"]].to_dict("records"),
                     "comuns": len(set(imp.head(5)["variavel"]) & set(top_hoje)), "correlacao": corr,
                     "n_comuns": len(comum), "modelo": nome_modelo(x["escolhido"].iloc[-1])})
-    return out
+    return out, fotos
+
+
+def _diagnostico_pca(ticker, res, base, hoje, setor, candidatas, cfg, imp, fotos, jan) -> dict:
+    """Diagnóstico de PCA dos preditores (só leitura): fatores de hoje, redundância, importância no tempo e a
+    recomendação por preditor; e o resumo da PCA em cada retreino dos últimos anos."""
+    cfg_m = cfg["modelo"]
+    r_hoje = pd.Timestamp(res.passos_hoje.retreino) if res.passos_hoje is not None else pd.Timestamp(hoje)
+    d = PCA_P.pca_na_data(base, r_hoje, candidatas, cfg_m)
+    if d is None:
+        return {"pca": {"ok": False}}
+    inicio = jan.index.min() if len(jan) else None
+    p = caminhos.pasta_ultima_rodada(ticker) / "variaveis.json"
+    vs = json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
+    freq, n_ret = PCA_P.frequencia_lasso(vs, inicio, setor["alvos"])
+    shap_m, perm_m = PCA_P.importancia_media([f for f in fotos if f is not None])
+    tab = PCA_P.recomendar(d, imp, shap_m, perm_m, freq, preditores.nome_preditor,
+                           lambda v: preditores.familia_preditor(v, setor))
+    esc = res.escolhas.sort_values("data") if res.escolhas is not None and len(res.escolhas) else pd.DataFrame()
+    if len(esc) and inicio is not None:
+        esc = esc[esc["data"] >= inicio]
+    tempo = PCA_P.no_tempo(base, list(esc["data"]) if len(esc) else [], candidatas, cfg_m)
+    # Uma linha por ano (o último retreino de cada ano), para caber na página.
+    por_ano: dict = {}
+    for t in tempo:
+        por_ano[t["data"].year] = t
+    tempo_ano = [dict(t, top_f1=", ".join(preditores.nome_preditor(v) for v in t["top_f1"])) for t in por_ano.values()]
+    cont = tab["recomendacao"].value_counts().to_dict() if len(tab) else {}
+    usa_pca = list(esc["escolhido"]) if len(esc) else []
+    n_pca = sum(1 for e in usa_pca if any(m in C.MODELOS_PCA for m in C.membros(e.split("|")[0])))
+
+    def nomes(rec):
+        x = tab.loc[tab["recomendacao"] == rec, "nome"]
+        return ", ".join(x.head(8)) + ("" if len(x) <= 8 else f" e mais {len(x) - 8}")
+
+    texto = [
+        f"No retreino de {formatos.data(d['data'])}, {len(d['variaveis'])} preditores candidatos com cobertura; "
+        f"{d['k']} componentes explicam {formatos.pct(d['acumulada_k'], 0)} da variação deles (o 1º sozinho, "
+        f"{formatos.pct(d['variancia'][0], 0)}). Há {len(d['grupos'])} grupos de preditores redundantes (correlação de "
+        f"postos de 0,90 ou mais), com {sum(len(g) for g in d['grupos'])} preditores.",
+        f"Recomendação: {cont.get('manter', 0)} a manter, {cont.get('observar', 0)} em observação, "
+        f"{cont.get('reciclar no fator', 0)} para reciclar no fator e {cont.get('candidato a sair', 0)} candidatos a sair "
+        f"(importância média de {len(fotos)} fotos anuais; frequência do LASSO em {n_ret} retreinos).",
+    ]
+    for rec, rot in (("manter", "A manter"), ("reciclar no fator", "Para reciclar no fator"),
+                     ("candidato a sair", "Candidatos a sair")):
+        if cont.get(rec):
+            texto.append(f"{rot}: {nomes(rec)}.")
+    texto.append(f"Candidatos sobre componentes principais escolhidos pelo walk-forward: {n_pca} dos {len(usa_pca)} "
+                 "retreinos do período fora da amostra.")
+    return {"pca": {"ok": True, "data": d["data"], "k": d["k"], "n": len(d["variaveis"]),
+                    "fatores": PCA_P.fatores_de_hoje(d, preditores.nome_preditor)[:5],
+                    "tabela": tab.to_dict("records"), "tempo": tempo_ano, "texto": texto, "nota": PCA_P.NOTA}}
 
 
 def _contexto_fase2(sinais, historia, pares, setor) -> dict:
@@ -295,8 +358,11 @@ def _salvar_ultima_rodada(ticker, analise, res, dados, imp, estr) -> None:
              for v in res.variaveis_por_retreino]
     p = ur / "variaveis.json"
     antigos = json.loads(p.read_text(encoding="utf-8")) if p.exists() else []
-    vistos = {(v["data"], v["alvo"]) for v in vars_}
-    juntos = [v for v in antigos if (v["data"], v["alvo"]) not in vistos] + vars_
+    # A rodada refaz tudo a partir do primeiro retreino novo: os antigos dali em diante saem (e os do painel,
+    # retirado na versão 1.2.0, também).
+    inicio_novos = min((v["data"] for v in vars_), default=None)
+    juntos = [v for v in antigos if not str(v["alvo"]).startswith("painel:")
+              and (inicio_novos is None or v["data"] < inicio_novos)] + vars_
     p.write_text(json.dumps(sorted(juntos, key=lambda v: (v["data"], v["alvo"])), ensure_ascii=False), encoding="utf-8")
 
 
@@ -710,7 +776,11 @@ def _metodologia(setor, cfg) -> list[str]:
         "divulgação (defasagens conservadoras por série); o último dado já divulgado no fim de cada mês.",
         f"Modelos: rede neural (uma camada oculta com {m['rede_neural']['camadas_ocultas'][0]} neurônios, regularização L2, "
         f"early stopping num bloco final do treino em ordem de tempo, média de {len(m['sementes'])} sementes), ridge, "
-        "gradient boosting e médias entre eles; referência: passeio aleatório (último preço).",
+        "gradient boosting e médias entre eles; referência: passeio aleatório (último preço). Desde a versão 1.3.0 do "
+        "modelo, também ridge e rede neural sobre os componentes principais (PCA) de todas as candidatas com "
+        "cobertura, padronizadas com o treino: k = menor número de componentes que explica "
+        f"{formatos.pct(m.get('componentes_principais', {}).get('variancia_explicada', 0.9), 0)} da variação delas, até "
+        "o limite de variáveis da seleção; PCA, k e modelos refeitos a cada retreino só com os dados até a data.",
         "Walk-forward: retreino no fim do mês em que sai um documento novo na CVM; a cada retreino, seleção de variáveis "
         "(cobertura, redundância e LASSO com validação no tempo), normalização, hiperparâmetros e escolha do candidato "
         f"(menor erro médio contra o preço 6 e 12 meses depois, só com resultados já fechados, nos últimos "
